@@ -166,40 +166,6 @@
           </div>
         </div>
 
-        <!-- LATCH -->
-        <div class="engineeringCard">
-          <div class="engineeringHeader">
-            <h2>Latch</h2>
-            <span>Memória ativa</span>
-          </div>
-
-          <div class="engData">
-            <div class="engMetric">
-              <span>Canal R</span>
-              <b id="engLatchR">00</b>
-            </div>
-
-            <div class="engMetric">
-              <span>Canal G</span>
-              <b id="engLatchG">00</b>
-            </div>
-
-            <div class="engMetric">
-              <span>Canal B</span>
-              <b id="engLatchB">00</b>
-            </div>
-
-            <div class="engMetric">
-              <span>Ordem</span>
-              <b id="engOrder">GRB</b>
-            </div>
-          </div>
-
-          <div class="engStatus">
-            O Latch mantém os valores depois que os 24 bits foram transferidos
-            do Shift Register para a memória do pixel.
-          </div>
-        </div>
         <!-- DECOMPOSIÇÃO BIT A BIT -->
         <div class="engineeringCard bitDecompositionCard">
 
@@ -331,6 +297,113 @@
 
         </div>
 
+        <div class="engineeringCard engineeringElectricalPath">
+          <div class="engineeringHeader">
+            <h2>Distribuição elétrica da fita</h2>
+            <span id="engInjectionStatus">Alimentação única</span>
+          </div>
+
+          <div class="electricalControls">
+            <div>
+              <label>Pontos de alimentação</label>
+              <select id="powerInjection">
+                <option value="start">Somente início</option>
+                <option value="middle">Início + meio</option>
+                <option value="both">Início + meio + final</option>
+                <option value="none">Sem alimentação</option>
+              </select>
+            </div>
+
+            <div>
+              <label>Resistência por trecho (Ω)</label>
+              <input id="segmentResistance" type="number" step=".001" value=".004">
+            </div>
+          </div>
+
+          <div class="powerSourceVisual">
+            <div class="sourceBox">
+              <strong id="sourceVoltageVisual">5V 10A</strong>
+              <span>FONTE</span>
+            </div>
+
+            <div class="sourceLine">
+              <span>+</span>
+              <div class="sourceRail"></div>
+            </div>
+          </div>
+
+          <div id="electricalStrip" class="electricalStrip"></div>
+
+          <div class="electricalLegend">
+            <span>
+              <i class="legendDot normal"></i>
+              Tensão normal
+            </span>
+
+            <span>
+              <i class="legendDot warning"></i>
+              Queda elevada
+            </span>
+
+            <span>
+              <i class="legendDot critical"></i>
+              Tensão baixa
+            </span>
+          </div>
+
+          <div class="engData electricalSummary">
+            <div class="engMetric">
+              <span>Tensão inicial</span>
+              <b id="electricalStartVoltage">5.00 V</b>
+            </div>
+
+            <div class="engMetric">
+              <span>Tensão no meio</span>
+              <b id="electricalMiddleVoltage">5.00 V</b>
+            </div>
+
+            <div class="engMetric">
+              <span>Tensão final</span>
+              <b id="electricalEndVoltage">5.00 V</b>
+            </div>
+
+            <div class="engMetric">
+              <span>Queda máxima</span>
+              <b id="electricalMaxDrop">0.00 V</b>
+            </div>
+          </div>
+
+          <div id="electricalInjectionDiagram" class="injectionDiagram">
+            <div class="injectionSource">
+              <div>[<b id="injectionSourceText">5V 10A</b>]</div>
+              <span>Fonte</span>
+            </div>
+
+            <div class="injectionBranches">
+              <div>
+                <span>├──►</span>
+                <b>início</b>
+              </div>
+
+              <div id="middleInjectionBranch">
+                <span>└──►</span>
+                <b>meio</b>
+              </div>
+
+              <div id="endInjectionBranch">
+                <span>└──►</span>
+                <b>final</b>
+              </div>
+            </div>
+          </div>
+
+          <div class="engStatus">
+            Modelo didático: cada pixel consome corrente e provoca uma pequena
+            queda de tensão no trecho de cobre. Pontos adicionais de alimentação
+            reduzem a distância elétrica percorrida pela corrente.
+          </div>
+        </div>
+
         <!-- ELETRÔNICA -->
         <div class="engBottom">
 
@@ -367,113 +440,6 @@
             </div>
           </div>
 
-          <div class="engineeringCard engineeringElectricalPath">
-            <div class="engineeringHeader">
-              <h2>Distribuição elétrica da fita</h2>
-              <span id="engInjectionStatus">Alimentação única</span>
-            </div>
-
-            <div class="electricalControls">
-              <div>
-                <label>Pontos de alimentação</label>
-                <select id="powerInjection">
-                  <option value="start">Somente início</option>
-                  <option value="middle">Início + meio</option>
-                  <option value="both">Início + meio + final</option>
-                  <option value="none">Sem alimentação</option>
-                </select>
-              </div>
-
-              <div>
-                <label>Resistência por trecho (Ω)</label>
-                <input id="segmentResistance" type="number" step=".001" value=".004">
-              </div>
-            </div>
-
-            <div class="powerSourceVisual">
-              <div class="sourceBox">
-                <strong id="sourceVoltageVisual">5V 10A</strong>
-                <span>FONTE</span>
-              </div>
-
-              <div class="sourceLine">
-                <span>+</span>
-                <div class="sourceRail"></div>
-              </div>
-            </div>
-
-            <div id="electricalStrip" class="electricalStrip"></div>
-
-            <div class="electricalLegend">
-              <span>
-                <i class="legendDot normal"></i>
-                Tensão normal
-              </span>
-
-              <span>
-                <i class="legendDot warning"></i>
-                Queda elevada
-              </span>
-
-              <span>
-                <i class="legendDot critical"></i>
-                Tensão baixa
-              </span>
-            </div>
-
-            <div class="engData electricalSummary">
-              <div class="engMetric">
-                <span>Tensão inicial</span>
-                <b id="electricalStartVoltage">5.00 V</b>
-              </div>
-
-              <div class="engMetric">
-                <span>Tensão no meio</span>
-                <b id="electricalMiddleVoltage">5.00 V</b>
-              </div>
-
-              <div class="engMetric">
-                <span>Tensão final</span>
-                <b id="electricalEndVoltage">5.00 V</b>
-              </div>
-
-              <div class="engMetric">
-                <span>Queda máxima</span>
-                <b id="electricalMaxDrop">0.00 V</b>
-              </div>
-            </div>
-
-            <div id="electricalInjectionDiagram" class="injectionDiagram">
-              <div class="injectionSource">
-                <div>[<b id="injectionSourceText">5V 10A</b>]</div>
-                <span>Fonte</span>
-              </div>
-
-              <div class="injectionBranches">
-                <div>
-                  <span>├──►</span>
-                  <b>início</b>
-                </div>
-
-                <div id="middleInjectionBranch">
-                  <span>└──►</span>
-                  <b>meio</b>
-                </div>
-
-                <div id="endInjectionBranch">
-                  <span>└──►</span>
-                  <b>final</b>
-                </div>
-              </div>
-            </div>
-
-            <div class="engStatus">
-              Modelo didático: cada pixel consome corrente e provoca uma pequena
-              queda de tensão no trecho de cobre. Pontos adicionais de alimentação
-              reduzem a distância elétrica percorrida pela corrente.
-            </div>
-          </div>
-
           <div class="engineeringCard">
             <div class="engineeringHeader">
               <h2>Pixel selecionado</h2>
@@ -497,6 +463,41 @@
                   DATA → SHIFT → LATCH → PWM → LED
                 </b>
               </div>
+            </div>
+          </div>
+
+          <!-- LATCH -->
+          <div class="engineeringCard">
+            <div class="engineeringHeader">
+              <h2>Latch</h2>
+              <span>Memória ativa</span>
+            </div>
+
+            <div class="engData">
+              <div class="engMetric">
+                <span>Canal R</span>
+                <b id="engLatchR">00</b>
+              </div>
+
+              <div class="engMetric">
+                <span>Canal G</span>
+                <b id="engLatchG">00</b>
+              </div>
+
+              <div class="engMetric">
+                <span>Canal B</span>
+                <b id="engLatchB">00</b>
+              </div>
+
+              <div class="engMetric">
+                <span>Ordem</span>
+                <b id="engOrder">GRB</b>
+              </div>
+            </div>
+
+            <div class="engStatus">
+              O Latch mantém os valores depois que os 24 bits foram transferidos
+              do Shift Register para a memória do pixel.
             </div>
           </div>
 
