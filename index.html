@@ -1,0 +1,3595 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <link rel="stylesheet" href="style.css">
+  <title>Simulador de LED Endereçável — WS2812B</title>
+</head>
+
+<body>
+  <header>
+    <h1>Simulador didático de LED endereçável</h1>
+    <div class="sub">Modelo elétrico e lógico inspirado em WS2812B: fluxo serial → 24 bits consumidos por pixel →
+      restante regenerado para o próximo.</div>
+  </header>
+  <div class="app">
+    <aside class="panel left">
+      <div class="card">
+        <h2>Fita</h2>
+        <label>Quantidade de pixels</label><input id="count" type="number" min="1" max="300" value="30">
+        <label>Espaçamento visual</label><input id="spacing" type="range" min="45" max="150" value="78">
+        <label>Curvatura / tensão</label><input id="curve" type="range" min="-1" max="1" step=".01" value=".18">
+        <label>Modo</label><select id="layout">
+          <option value="line">Linha</option>
+          <option value="circle">Círculo</option>
+          <option value="zig">Serpentina</option>
+        </select>
+        <button id="rebuild" style="margin-top:10px">Aplicar fita</button>
+      </div>
+      <div class="card">
+        <h2>Transmissão</h2>
+        <label>Bytes RGB (hex, separados por espaço)</label>
+        <textarea id="bytes" rows="5" class="mono">FF 00 00 00 FF 00 00 00 FF 20 10 40</textarea>
+        <div class="row" style="margin-top:8px"><button id="send">Transmitir</button><button id="clear">Limpar
+            memória</button></div>
+        <label>Velocidade do protocolo</label><input id="baud" type="number" value="800000" min="100000" step="10000">
+        <div class="small">WS2812B típico: 800 kbit/s. Cada pixel recebe 24 bits (3 bytes). A ordem de bytes é
+          configurável abaixo.</div>
+        <label>Ordem dos bytes</label><select id="order">
+          <option>GRB</option>
+          <option>RGB</option>
+          <option>BRG</option>
+        </select>
+      </div>
+      <div class="card">
+        <h2>Fonte e cobre</h2>
+        <div class="row">
+          <div><label>Fonte (V)</label><input id="vs" type="number" step=".1" value="5"></div>
+          <div><label>Limite (A)</label><input id="imax" type="number" step=".1" value="10"></div>
+        </div>
+        <div class="row">
+          <div><label>R fita / m (Ω)</label><input id="rper" type="number" step=".01" value=".12"></div>
+          <div><label>Comprimento (m)</label><input id="length" type="number" step=".1" value="3.5"></div>
+        </div>
+        <div class="row">
+          <div><label>Corrente R (mA)</label><input id="ir" type="number" step="1" value="20"></div>
+          <div><label>Corrente G (mA)</label><input id="ig" type="number" step="1" value="20"></div>
+        </div>
+        <div class="row">
+          <div><label>Corrente B (mA)</label><input id="ib" type="number" step="1" value="20"></div>
+          <div><label>IC (mA)</label><input id="ic" type="number" step=".1" value="1"></div>
+        </div>
+        <div class="small">Modelo resistivo simplificado: queda de tensão = I × R. Para uma fita real, resistência
+          depende do trilho, cobre, geometria e pontos de injeção.</div>
+      </div>
+
+      <div class="card">
+        <h2>Interação</h2>
+        <div class="small">Arraste a fita no espaço central. Clique em um pixel para selecioná-lo. Roda do mouse = zoom.
+          O LED selecionado pode ser editado diretamente no painel direito.</div>
+      </div>
+    </aside>
+
+    <main class="workspace">
+      <div class="toolbar">
+        <button id="play">▶ Animar decomposição</button>
+        <button id="step">Passo</button>
+        <button id="resetView">Centralizar</button>
+        <button id="engineeringToggle">🔬 Modo Engenharia</button>
+        <span class="hint">Fluxo: DIN → LED 1 → LED 2 → ... → DOUT</span>
+      </div>
+      <canvas id="stage"></canvas>
+      <div id="engineeringMode" class="engineeringMode">
+
+        <!-- OSCILOSCÓPIO -->
+        <div class="engineeringCard">
+          <div class="engineeringHeader">
+            <h2>Osciloscópio — DATA</h2>
+            <span id="scopeLed">LED #1</span>
+          </div>
+
+          <canvas id="scope" class="scope"></canvas>
+
+          <div class="scopeLegend">
+            <span>5V ─ nível HIGH</span>
+            <span>0V ─ nível LOW</span>
+            <span id="scopeInfo">24 bits</span>
+          </div>
+
+          <div class="engStatus">
+            Visualização didática do sinal serial que chega ao CI.
+            Cada bit é representado como nível lógico HIGH/LOW.
+          </div>
+        </div>
+
+        <!-- SHIFT REGISTER -->
+        <div class="engineeringCard">
+          <div class="engineeringHeader">
+            <h2>Shift Register</h2>
+            <span id="engShiftLed">LED #1</span>
+          </div>
+
+          <div id="engShiftBits" class="engBits">
+            00000000 00000000 00000000
+          </div>
+
+          <div class="engData" style="margin-top:8px">
+            <div class="engMetric">
+              <span>Bits recebidos</span>
+              <b id="engBitCount">24</b>
+            </div>
+
+            <div class="engMetric">
+              <span>Velocidade DATA</span>
+              <b id="engBaud">800 kbit/s</b>
+            </div>
+
+            <div class="engMetric engWide">
+              <span>Fluxo serial</span>
+              <b id="engSerialFlow">DIN → Shift Register → Latch → PWM</b>
+            </div>
+          </div>
+        </div>
+
+        <!-- LATCH -->
+        <div class="engineeringCard">
+          <div class="engineeringHeader">
+            <h2>Latch</h2>
+            <span>Memória ativa</span>
+          </div>
+
+          <div class="engData">
+            <div class="engMetric">
+              <span>Canal R</span>
+              <b id="engLatchR">00</b>
+            </div>
+
+            <div class="engMetric">
+              <span>Canal G</span>
+              <b id="engLatchG">00</b>
+            </div>
+
+            <div class="engMetric">
+              <span>Canal B</span>
+              <b id="engLatchB">00</b>
+            </div>
+
+            <div class="engMetric">
+              <span>Ordem</span>
+              <b id="engOrder">GRB</b>
+            </div>
+          </div>
+
+          <div class="engStatus">
+            O Latch mantém os valores depois que os 24 bits foram transferidos
+            do Shift Register para a memória do pixel.
+          </div>
+        </div>
+        <!-- DECOMPOSIÇÃO BIT A BIT -->
+        <div class="engineeringCard bitDecompositionCard">
+
+          <div class="engineeringHeader">
+            <h2>Decomposição passo a passo</h2>
+            <span id="bitStepLed">LED #1</span>
+          </div>
+
+          <div class="bitDecomposition">
+
+            <div class="bitStage">
+
+              <div class="bitStageTitle">
+                <span>ENTRADA</span>
+                <small>Fluxo serial</small>
+              </div>
+
+              <div id="bitInputFlow" class="bitFlowInput">
+                AA F0 33 10 80 FF FF 00 20
+              </div>
+
+              <div class="bitFlowPointer">
+                <span id="bitInputConsumed">0 bits consumidos</span>
+                <span id="bitInputRemaining">9 bytes restantes</span>
+              </div>
+
+            </div>
+
+            <div class="bitDownArrow">▼</div>
+
+            <div class="bitStage active">
+
+              <div class="bitStageTitle">
+                <span id="bitCurrentLed">LED #1</span>
+                <small>Recebendo</small>
+              </div>
+
+              <div class="bitReceiveText">
+                Recebe:
+              </div>
+
+              <div id="bitCurrentByte" class="bitCurrentByte">
+                AA
+              </div>
+
+              <div class="bitBinaryBox">
+                <div id="bitBinaryValue" class="bitBinaryValue">
+                  <span>1</span><span>0</span><span>1</span><span>0</span>
+                  <span>1</span><span>0</span><span>1</span><span>0</span>
+                </div>
+              </div>
+
+              <div class="bitPosition">
+                Bit atual:
+                <b id="bitPosition">1</b>
+                /
+                <b>24</b>
+              </div>
+
+              <div class="bitShiftVisual">
+
+                <div class="bitShiftLabel">
+                  SHIFT REGISTER
+                </div>
+
+                <div id="bitShiftRegister" class="bitShiftRegister">
+                  <span class="empty">00000000</span>
+                  <span class="empty">00000000</span>
+                  <span class="empty">00000000</span>
+                </div>
+
+              </div>
+
+              <div id="bitStoreStatus" class="bitStoreStatus">
+                Aguardando bits...
+              </div>
+
+            </div>
+
+            <div class="bitDownArrow">▼</div>
+
+            <div class="bitStage">
+
+              <div class="bitStageTitle">
+                <span>RETRANSMITE</span>
+                <small>DOUT</small>
+              </div>
+
+              <div id="bitRemainingFlow" class="bitRemainingFlow">
+                10 80 FF FF 00 20
+              </div>
+
+              <div class="bitFlowPointer">
+                <span id="bitRemainingCount">6 bytes restantes</span>
+              </div>
+
+            </div>
+
+          </div>
+
+          <div class="bitControls">
+
+            <button id="nextBit">
+              ▶ Próximo bit
+            </button>
+
+            <button id="resetBits">
+              ↺ Reiniciar bits
+            </button>
+
+          </div>
+
+          <div class="bitProgress">
+
+            <div class="bitProgressHeader">
+              <span>Progresso da transmissão</span>
+              <b id="bitProgressText">0 / 24 bits</b>
+            </div>
+
+            <div class="bitProgressBar">
+              <div id="bitProgressFill"></div>
+            </div>
+
+          </div>
+
+          <div id="bitExplanation" class="engStatus">
+            Pressione "Próximo bit" para acompanhar o fluxo bit a bit.
+          </div>
+
+        </div>
+
+        <!-- ELETRÔNICA -->
+        <div class="engBottom">
+
+          <div class="engineeringCard">
+            <div class="engineeringHeader">
+              <h2>Eletrônica</h2>
+              <span>Modelo elétrico</span>
+            </div>
+
+            <div class="engData">
+              <div class="engMetric">
+                <span>Tensão</span>
+                <b id="engVoltage">5.00 V</b>
+              </div>
+
+              <div class="engMetric">
+                <span>Corrente</span>
+                <b id="engCurrent">0.00 A</b>
+              </div>
+
+              <div class="engMetric">
+                <span>Potência</span>
+                <b id="engPower">0.00 W</b>
+              </div>
+
+              <div class="engMetric">
+                <span>Queda</span>
+                <b id="engDrop">0.00 V</b>
+              </div>
+            </div>
+
+            <div id="engElectricalStatus" class="engStatus">
+              Corrente dentro do limite configurado.
+            </div>
+          </div>
+
+          <div class="engineeringCard engineeringElectricalPath">
+            <div class="engineeringHeader">
+              <h2>Distribuição elétrica da fita</h2>
+              <span id="engInjectionStatus">Alimentação única</span>
+            </div>
+
+            <div class="electricalControls">
+              <div>
+                <label>Pontos de alimentação</label>
+                <select id="powerInjection">
+                  <option value="start">Somente início</option>
+                  <option value="middle">Início + meio</option>
+                  <option value="both">Início + meio + final</option>
+                  <option value="none">Sem alimentação</option>
+                </select>
+              </div>
+
+              <div>
+                <label>Resistência por trecho (Ω)</label>
+                <input id="segmentResistance" type="number" step=".001" value=".004">
+              </div>
+            </div>
+
+            <div class="powerSourceVisual">
+              <div class="sourceBox">
+                <strong id="sourceVoltageVisual">5V 10A</strong>
+                <span>FONTE</span>
+              </div>
+
+              <div class="sourceLine">
+                <span>+</span>
+                <div class="sourceRail"></div>
+              </div>
+            </div>
+
+            <div id="electricalStrip" class="electricalStrip"></div>
+
+            <div class="electricalLegend">
+              <span>
+                <i class="legendDot normal"></i>
+                Tensão normal
+              </span>
+
+              <span>
+                <i class="legendDot warning"></i>
+                Queda elevada
+              </span>
+
+              <span>
+                <i class="legendDot critical"></i>
+                Tensão baixa
+              </span>
+            </div>
+
+            <div class="engData electricalSummary">
+              <div class="engMetric">
+                <span>Tensão inicial</span>
+                <b id="electricalStartVoltage">5.00 V</b>
+              </div>
+
+              <div class="engMetric">
+                <span>Tensão no meio</span>
+                <b id="electricalMiddleVoltage">5.00 V</b>
+              </div>
+
+              <div class="engMetric">
+                <span>Tensão final</span>
+                <b id="electricalEndVoltage">5.00 V</b>
+              </div>
+
+              <div class="engMetric">
+                <span>Queda máxima</span>
+                <b id="electricalMaxDrop">0.00 V</b>
+              </div>
+            </div>
+
+            <div id="electricalInjectionDiagram" class="injectionDiagram">
+              <div class="injectionSource">
+                <div>[<b id="injectionSourceText">5V 10A</b>]</div>
+                <span>Fonte</span>
+              </div>
+
+              <div class="injectionBranches">
+                <div>
+                  <span>├──►</span>
+                  <b>início</b>
+                </div>
+
+                <div id="middleInjectionBranch">
+                  <span>└──►</span>
+                  <b>meio</b>
+                </div>
+
+                <div id="endInjectionBranch">
+                  <span>└──►</span>
+                  <b>final</b>
+                </div>
+              </div>
+            </div>
+
+            <div class="engStatus">
+              Modelo didático: cada pixel consome corrente e provoca uma pequena
+              queda de tensão no trecho de cobre. Pontos adicionais de alimentação
+              reduzem a distância elétrica percorrida pela corrente.
+            </div>
+          </div>
+
+          <div class="engineeringCard">
+            <div class="engineeringHeader">
+              <h2>Pixel selecionado</h2>
+              <span>Estado instantâneo</span>
+            </div>
+
+            <div class="engData">
+              <div class="engMetric">
+                <span>Endereço</span>
+                <b id="engAddress">#1</b>
+              </div>
+
+              <div class="engMetric">
+                <span>RGB</span>
+                <b id="engRgb">00 00 00</b>
+              </div>
+
+              <div class="engMetric engWide">
+                <span>Processamento</span>
+                <b id="engProcess">
+                  DATA → SHIFT → LATCH → PWM → LED
+                </b>
+              </div>
+            </div>
+          </div>
+
+        </div>
+
+      </div>
+    </main>
+
+    <aside class="panel right">
+
+      <div class="card">
+        <h2>Pixel selecionado</h2>
+        <div id="big" class="ledbig">#1</div>
+        <div class="statgrid">
+          <div class="stat"><b id="selAddr">1</b><span>ENDEREÇO / POSIÇÃO</span></div>
+          <div class="stat"><b id="selBits">000000000000000000000000</b><span>24 BITS</span></div>
+          <div class="stat"><b id="selHex">00 00 00</b><span>BYTES RECEBIDOS</span></div>
+          <div class="stat"><b id="selPwm">0 / 0 / 0</b><span>DUTY PWM %</span></div>
+        </div>
+        <label>Editar RGB do pixel</label>
+        <div class="three"><input id="er" type="number" min="0" max="255" value="0"><input id="eg" type="number" min="0"
+            max="255" value="0"><input id="eb" type="number" min="0" max="255" value="0"></div>
+        <button id="applyLed" style="margin-top:8px">Gravar na memória deste pixel</button>
+      </div>
+
+      <!-- NOVO: visão geral do caminho interno -->
+      <div class="card">
+        <div class="pipelineTitle">
+          <h2 style="margin:0">Caminho interno</h2>
+          <span id="pipelinePixel" class="selectedChip">LED #1</span>
+        </div>
+
+        <div class="signalFlow">
+          <div class="signalBox"><b>DATA</b><span>entrada serial</span></div>
+          <div class="signalArrow">→</div>
+          <div class="signalBox"><b>Shift Register</b><span>24 bits</span></div>
+          <div class="signalArrow">→</div>
+          <div class="signalBox"><b>Latch</b><span>memória</span></div>
+          <div class="signalArrow">→</div>
+          <div class="signalBox"><b>PWM</b><span>8 bits/canal</span></div>
+          <div class="signalArrow">→</div>
+          <div id="pipelineRgb" class="signalLed">RGB</div>
+        </div>
+
+        <div class="regTitle">Shift Register — bits recebidos</div>
+        <div id="shiftBits" class="registerBits">00000000 00000000 00000000</div>
+
+        <div class="regTitle">Memória / Latch — valores armazenados</div>
+        <div class="latchGrid">
+          <div class="latchByte"><b id="latchR">R = 00</b><span>CANAL R</span></div>
+          <div class="latchByte"><b id="latchG">G = 00</b><span>CANAL G</span></div>
+          <div class="latchByte"><b id="latchB">B = 00</b><span>CANAL B</span></div>
+        </div>
+
+        <div class="regTitle">PWM — duty gerado pelos valores latched</div>
+
+        <div class="pwmChannel">
+          <div class="pwmHeader"><b>R</b><span id="pipelinePr">0,0%</span></div>
+          <div class="pwmBar">
+            <div id="pipelinePwmR" class="pwmFill r"></div>
+          </div>
+          <div class="pwmFooter"><span id="pipelineBitsR">00000000</span><span id="pipelineValR">00</span></div>
+        </div>
+
+        <div class="pwmChannel">
+          <div class="pwmHeader"><b>G</b><span id="pipelinePg">0,0%</span></div>
+          <div class="pwmBar">
+            <div id="pipelinePwmG" class="pwmFill g"></div>
+          </div>
+          <div class="pwmFooter"><span id="pipelineBitsG">00000000</span><span id="pipelineValG">00</span></div>
+        </div>
+
+        <div class="pwmChannel">
+          <div class="pwmHeader"><b>B</b><span id="pipelinePb">0,0%</span></div>
+          <div class="pwmBar">
+            <div id="pipelinePwmB" class="pwmFill b"></div>
+          </div>
+          <div class="pwmFooter"><span id="pipelineBitsB">00000000</span><span id="pipelineValB">00</span></div>
+        </div>
+
+        <div class="rgbOutput">
+          <div id="pipelineRgbDot" class="rgbDot"></div>
+          <span>Saída combinada dos três canais → LED RGB</span>
+        </div>
+
+        <div class="small" style="margin-top:8px">
+          O <b>Shift Register</b> representa os bits que chegam pela entrada DATA.
+          O <b>Latch</b> representa a memória que mantém os valores depois da transferência.
+          O <b>PWM</b> transforma cada byte armazenado em um duty entre 0% e 100%.
+        </div>
+      </div>
+
+      <div class="card">
+        <h2>Memória interna</h2>
+        <div class="memory">
+          <div class="byte"><b id="mr">00</b><span>R</span></div>
+          <div class="byte"><b id="mg">00</b><span>G</span></div>
+          <div class="byte"><b id="mb">00</b><span>B</span></div>
+        </div>
+        <div style="margin-top:9px" class="small">O CI mantém os 24 bits recebidos até o próximo latch/reset. O
+          simulador separa a memória lógica do estado PWM.</div>
+        <div style="margin-top:8px"><span class="small">Bits armazenados:</span>
+          <div id="bits" class="bitrow" style="margin-top:5px"></div>
+        </div>
+      </div>
+
+      <div class="card">
+        <h2>Decoder → PWM</h2>
+        <table>
+          <tr>
+            <th>Canal</th>
+            <th>8 bits</th>
+            <th>Duty</th>
+            <th>Intensidade</th>
+          </tr>
+          <tr>
+            <td>R</td>
+            <td id="dr">00000000</td>
+            <td id="pr">0%</td>
+            <td id="irv">0 mA</td>
+          </tr>
+          <tr>
+            <td>G</td>
+            <td id="dg">00000000</td>
+            <td id="pg">0%</td>
+            <td id="igv">0 mA</td>
+          </tr>
+          <tr>
+            <td>B</td>
+            <td id="db">00000000</td>
+            <td id="pb">0%</td>
+            <td id="ibv">0 mA</td>
+          </tr>
+        </table>
+        <div class="small" style="margin-top:8px">PWM idealizado: duty ≈ valor/255. Ex.: 128 ≈ 50,2% do tempo ligado.
+        </div>
+      </div>
+
+      <div class="card">
+        <h2>Eletricidade da fita</h2>
+        <div class="statgrid">
+          <div class="stat"><b id="totalI">0 A</b><span>CORRENTE TOTAL</span></div>
+          <div class="stat"><b id="power">0 W</b><span>POTÊNCIA</span></div>
+          <div class="stat"><b id="vEnd">5 V</b><span>TENSÃO NO FINAL</span></div>
+          <div class="stat"><b id="drop">0 V</b><span>QUEDA ESTIMADA</span></div>
+        </div>
+        <div id="elecMsg" class="small" style="margin-top:9px"></div>
+      </div>
+
+      <div class="card">
+        <h2>Decomposição do fluxo</h2>
+        <div id="flow" class="flow"></div>
+        <div class="small">O primeiro CI pega exatamente 24 bits do início do fluxo e coloca o restante no DOUT. Não
+          existe endereço explícito no protocolo básico.</div>
+      </div>
+
+    </aside>
+  </div>
+
+  <script>
+    const canvas = document.getElementById('stage'), ctx = canvas.getContext('2d');
+    const scopeCanvas = document.getElementById('scope');
+    const scopeCtx = scopeCanvas.getContext('2d');
+
+    let engineeringMode = false;
+
+    let bitDecomposition = {
+      bytes: [],
+      bits: [],
+      cursor: 0,
+      led: 0,
+      ledBits: [],
+      started: false,
+      complete: false
+    };
+
+    let leds = [], selected = 0, zoom = 1, panX = 0, panY = 0, dragging = false, lastX = 0, lastY = 0, anim = false, animStep = 0;
+
+    const $ = id => document.getElementById(id);
+
+    function clamp(v, a = 0, b = 255) {
+      return Math.max(a, Math.min(b, v | 0))
+    }
+
+    function rgbHex(c) {
+      return '#' + [c.r, c.g, c.b].map(x => x.toString(16).padStart(2, '0')).join('')
+    }
+
+    function makeLed(i) {
+      return {
+        i,
+        r: 0,
+        g: 0,
+        b: 0,
+        x: 0,
+        y: 0,
+
+        /* Memória/latch */
+        mem: [0, 0, 0],
+
+        /* Bytes que chegaram pela entrada DATA */
+        received: [0, 0, 0],
+
+        /* Shift Register */
+        shift: [0, 0, 0],
+
+        /* Latch separado do shift register */
+        latch: [0, 0, 0]
+      }
+    }
+
+    function rebuild() {
+      const n = Math.max(1, Math.min(300, +$('count').value || 30));
+      leds = Array.from({ length: n }, (_, i) => makeLed(i));
+      selected = Math.min(selected, n - 1);
+      layoutLeds();
+      centerView();
+      updateAll();
+    }
+
+    function layoutLeds() {
+      const n = leds.length, s = +$('spacing').value, c = +$('curve').value, mode = $('layout').value;
+
+      if (mode === 'circle') {
+        const rad = Math.max(180, n * s / Math.PI / 2.8);
+        for (let i = 0; i < n; i++) {
+          let a = -Math.PI / 2 + i * 2 * Math.PI / n;
+          leds[i].x = Math.cos(a) * rad;
+          leds[i].y = Math.sin(a) * rad
+        }
+      } else {
+        for (let i = 0; i < n; i++) {
+          leds[i].x = i * s;
+          leds[i].y = (mode === 'zig' ? Math.sin(i * Math.PI) * 0 : Math.sin(i / (Math.max(1, n - 1)) * Math.PI) * c * s * 2);
+
+          if (mode === 'zig')
+            leds[i].y = (Math.floor(i / 10) % 2) * 90;
+        }
+      }
+    }
+
+    function centerView() {
+      if (!leds.length) return;
+
+      let minx = Math.min(...leds.map(l => l.x)),
+        maxx = Math.max(...leds.map(l => l.x)),
+        miny = Math.min(...leds.map(l => l.y)),
+        maxy = Math.max(...leds.map(l => l.y));
+
+      const w = canvas.clientWidth, h = canvas.clientHeight;
+
+      zoom = Math.min(
+        1.3,
+        Math.max(
+          .45,
+          Math.min(
+            w / (maxx - minx + 180),
+            h / (maxy - miny + 180)
+          )
+        )
+      );
+
+      panX = w / 2 - (minx + maxx) / 2 * zoom;
+      panY = h / 2 - (miny + maxy) / 2 * zoom;
+    }
+
+    function resize() {
+      const d = devicePixelRatio || 1;
+
+      canvas.width = canvas.clientWidth * d;
+      canvas.height = canvas.clientHeight * d;
+
+      ctx.setTransform(d, 0, 0, d, 0, 0);
+
+      draw();
+
+      if (engineeringMode) {
+        resizeScope();
+      }
+    }
+
+    window.addEventListener('resize', resize);
+
+    function screen(l) {
+      return [panX + l.x * zoom, panY + l.y * zoom]
+    }
+    function draw() {
+      const w = canvas.clientWidth;
+      const h = canvas.clientHeight;
+
+      ctx.clearRect(0, 0, w, h);
+
+      ctx.save();
+
+      /*
+       * ================================================================
+       * GRID DO WORKSPACE
+       * ================================================================
+       */
+
+      ctx.strokeStyle = '#121b2d';
+      ctx.lineWidth = 1;
+
+      const gridStep = 40;
+
+      for (
+        let x = (panX % gridStep) - gridStep;
+        x < w;
+        x += gridStep
+      ) {
+        ctx.beginPath();
+        ctx.moveTo(x, 0);
+        ctx.lineTo(x, h);
+        ctx.stroke();
+      }
+
+      for (
+        let y = (panY % gridStep) - gridStep;
+        y < h;
+        y += gridStep
+      ) {
+        ctx.beginPath();
+        ctx.moveTo(0, y);
+        ctx.lineTo(w, y);
+        ctx.stroke();
+      }
+
+      /*
+       * ================================================================
+       * FITA
+       * ================================================================
+       */
+
+      if (!leds.length) {
+        ctx.restore();
+        return;
+      }
+
+      /*
+       * Converte os LEDs para coordenadas de tela.
+       */
+      const points = leds.map(l => screen(l));
+
+      /*
+       * ------------------------------------------------
+       * Função auxiliar:
+       * desenha a linha central seguindo todos os pontos.
+       * ------------------------------------------------
+       */
+
+      function drawPath() {
+        ctx.beginPath();
+
+        points.forEach(([x, y], i) => {
+          if (i === 0) {
+            ctx.moveTo(x, y);
+          } else {
+            ctx.lineTo(x, y);
+          }
+        });
+      }
+
+      /*
+       * ================================================================
+       * CORPO DA FITA
+       * ================================================================
+       *
+       * A fita agora é uma superfície contínua.
+       *
+       * A primeira camada funciona como sombra/borda.
+       * A segunda representa o silicone/PCB.
+       */
+
+      drawPath();
+
+      ctx.strokeStyle = '#05070a';
+      ctx.lineWidth = Math.max(12, 38 * zoom);
+      ctx.lineCap = 'round';
+      ctx.lineJoin = 'round';
+      ctx.stroke();
+
+      drawPath();
+
+      ctx.strokeStyle = '#242a32';
+      ctx.lineWidth = Math.max(10, 31 * zoom);
+      ctx.lineCap = 'round';
+      ctx.lineJoin = 'round';
+      ctx.stroke();
+
+      /*
+       * Pequena iluminação na superfície da fita.
+       */
+      drawPath();
+
+      ctx.strokeStyle = '#303741';
+      ctx.lineWidth = Math.max(3, 26 * zoom);
+      ctx.stroke();
+
+      /*
+       * ================================================================
+       * TRILHAS DE COBRE
+       * ================================================================
+       *
+       * Em uma fita real existem trilhas longitudinais.
+       *
+       * Aqui usamos:
+       *
+       *     +5V
+       *     DATA
+       *     GND
+       *
+       * Os offsets são calculados de acordo com a direção local
+       * da fita para continuarem corretos em curvas.
+       */
+
+      function drawRail(offset, color, width) {
+
+        if (points.length < 2) return;
+
+        ctx.beginPath();
+
+        points.forEach(([x, y], i) => {
+
+          const previous =
+            points[Math.max(0, i - 1)];
+
+          const next =
+            points[Math.min(points.length - 1, i + 1)];
+
+          const dx = next[0] - previous[0];
+          const dy = next[1] - previous[1];
+
+          const length =
+            Math.hypot(dx, dy) || 1;
+
+          /*
+           * Vetor normal à direção da fita.
+           */
+          const nx = -dy / length;
+          const ny = dx / length;
+
+          const px = x + nx * offset * zoom;
+          const py = y + ny * offset * zoom;
+
+          if (i === 0) {
+            ctx.moveTo(px, py);
+          } else {
+            ctx.lineTo(px, py);
+          }
+        });
+
+        ctx.strokeStyle = color;
+        ctx.lineWidth = Math.max(1, width * zoom);
+        ctx.lineCap = 'round';
+        ctx.lineJoin = 'round';
+        ctx.stroke();
+      }
+
+      /*
+       * Trilho +5V
+       */
+      drawRail(
+        -8,
+        '#8c6935',
+        1.5
+      );
+
+      /*
+       * Trilho DATA
+       */
+      drawRail(
+        0,
+        '#a08042',
+        1.2
+      );
+
+      /*
+       * Trilho GND
+       */
+      drawRail(
+        8,
+        '#765a32',
+        1.5
+      );
+
+      /*
+       * ================================================================
+       * MARCAÇÕES DE POLARIDADE
+       * ================================================================
+       */
+
+      function drawPolarityMark(index, symbol, offset) {
+
+        const [x, y] = points[index];
+
+        const previous =
+          points[Math.max(0, index - 1)];
+
+        const next =
+          points[Math.min(points.length - 1, index + 1)];
+
+        const dx = next[0] - previous[0];
+        const dy = next[1] - previous[1];
+
+        const length =
+          Math.hypot(dx, dy) || 1;
+
+        const nx = -dy / length;
+        const ny = dx / length;
+
+        const px =
+          x + nx * offset * zoom;
+
+        const py =
+          y + ny * offset * zoom;
+
+        ctx.save();
+
+        ctx.fillStyle = '#6c7480';
+        ctx.font = `bold ${Math.max(7, 9 * zoom)}px ui-monospace`;
+        ctx.textAlign = 'center';
+        ctx.textBaseline = 'middle';
+
+        ctx.fillText(
+          symbol,
+          px,
+          py
+        );
+
+        ctx.restore();
+      }
+
+      /*
+       * Polaridade aparece apenas quando há espaço suficiente.
+       */
+      if (zoom > 0.35) {
+
+        for (let i = 0; i < leds.length; i += 3) {
+
+          drawPolarityMark(
+            i,
+            '+',
+            -8
+          );
+
+          drawPolarityMark(
+            i,
+            '−',
+            8
+          );
+        }
+      }
+
+      /*
+       * ================================================================
+       * ÁREAS DE CORTE
+       * ================================================================
+       */
+
+      if (points.length > 1 && zoom > 0.35) {
+
+        for (let i = 3; i < points.length; i += 3) {
+
+          const [x, y] = points[i];
+
+          const previous =
+            points[Math.max(0, i - 1)];
+
+          const next =
+            points[Math.min(points.length - 1, i + 1)];
+
+          const dx = next[0] - previous[0];
+          const dy = next[1] - previous[1];
+
+          const angle =
+            Math.atan2(dy, dx);
+
+          ctx.save();
+
+          ctx.translate(x, y);
+          ctx.rotate(angle + Math.PI / 2);
+
+          /*
+           * Área de corte.
+           */
+          ctx.strokeStyle = '#727b87';
+          ctx.lineWidth = Math.max(1, 1.1 * zoom);
+
+          ctx.setLineDash([
+            3 * zoom,
+            3 * zoom
+          ]);
+
+          ctx.beginPath();
+
+          ctx.moveTo(
+            0,
+            -13 * zoom
+          );
+
+          ctx.lineTo(
+            0,
+            13 * zoom
+          );
+
+          ctx.stroke();
+
+          ctx.setLineDash([]);
+
+          /*
+           * Pequenas marcas metálicas.
+           */
+          ctx.fillStyle = '#aeb6c0';
+
+          ctx.fillRect(
+            -1.5 * zoom,
+            -14 * zoom,
+            3 * zoom,
+            3 * zoom
+          );
+
+          ctx.fillRect(
+            -1.5 * zoom,
+            11 * zoom,
+            3 * zoom,
+            3 * zoom
+          );
+
+          ctx.restore();
+        }
+      }
+
+      /*
+       * ================================================================
+       * COMPONENTES
+       * ================================================================
+       */
+
+      leds.forEach((l, i) => {
+
+        const [x, y] = points[i];
+
+        /*
+         * Direção da fita naquele ponto.
+         */
+        const previous =
+          points[Math.max(0, i - 1)];
+
+        const next =
+          points[Math.min(points.length - 1, i + 1)];
+
+        const dx =
+          next[0] - previous[0];
+
+        const dy =
+          next[1] - previous[1];
+
+        const angle =
+          Math.atan2(dy, dx);
+
+        ctx.save();
+
+        ctx.translate(x, y);
+        ctx.rotate(angle);
+
+        /*
+         * ============================================================
+         * PADS DO COMPONENTE
+         * ============================================================
+         */
+
+        const s = Math.max(
+          8,
+          18 * zoom
+        );
+
+        const padLength =
+          Math.max(2, 4 * zoom);
+
+        const padWidth =
+          Math.max(2, 4.5 * zoom);
+
+        /*
+         * Pads metálicos laterais.
+         */
+        ctx.fillStyle = '#b8904b';
+
+        ctx.fillRect(
+          -s / 2 - padLength,
+          -padWidth / 2,
+          padLength,
+          padWidth
+        );
+
+        ctx.fillRect(
+          s / 2,
+          -padWidth / 2,
+          padLength,
+          padWidth
+        );
+
+        /*
+         * Pequenos reflexos nos pads.
+         */
+        ctx.fillStyle = '#e0bd76';
+
+        ctx.fillRect(
+          -s / 2 - padLength,
+          -padWidth / 2,
+          padLength,
+          Math.max(1, zoom)
+        );
+
+        ctx.fillRect(
+          s / 2,
+          -padWidth / 2,
+          padLength,
+          Math.max(1, zoom)
+        );
+
+        /*
+         * ============================================================
+         * CI WS2812B
+         * ============================================================
+         *
+         * Representação didática:
+         *
+         *       ┌───────────┐
+         * DIN → │  WS2812B  │ → DOUT
+         *       └───────────┘
+         */
+
+        const chipW =
+          Math.max(5, 9 * zoom);
+
+        const chipH =
+          Math.max(4, 7 * zoom);
+
+        /*
+         * Corpo escuro do CI.
+         */
+        ctx.fillStyle =
+          i === selected
+            ? '#101722'
+            : '#0b0f15';
+
+        ctx.strokeStyle =
+          i === selected
+            ? '#91a9c7'
+            : '#4d5662';
+
+        ctx.lineWidth =
+          Math.max(0.7, 1 * zoom);
+
+        ctx.beginPath();
+
+        ctx.roundRect(
+          -chipW / 2,
+          -chipH / 2,
+          chipW,
+          chipH,
+          1.5 * zoom
+        );
+
+        ctx.fill();
+        ctx.stroke();
+
+        /*
+         * Pequeno ponto de orientação do CI.
+         */
+        ctx.fillStyle = '#798392';
+
+        ctx.beginPath();
+
+        ctx.arc(
+          -chipW / 2 + 2 * zoom,
+          -chipH / 2 + 2 * zoom,
+          Math.max(0.8, 1 * zoom),
+          0,
+          Math.PI * 2
+        );
+
+        ctx.fill();
+
+        /*
+         * ============================================================
+         * LED RGB 5050
+         * ============================================================
+         */
+
+        const col =
+          rgbHex(l);
+
+        const active =
+          l.r > 0 ||
+          l.g > 0 ||
+          l.b > 0;
+
+        /*
+         * Glow.
+         */
+        if (active) {
+
+          const glowRadius =
+            Math.max(10, 22 * zoom);
+
+          const gradient =
+            ctx.createRadialGradient(
+              0,
+              0,
+              0,
+              0,
+              0,
+              glowRadius
+            );
+
+          gradient.addColorStop(
+            0,
+            col + 'EE'
+          );
+
+          gradient.addColorStop(
+            0.25,
+            col + 'AA'
+          );
+
+          gradient.addColorStop(
+            0.55,
+            col + '44'
+          );
+
+          gradient.addColorStop(
+            1,
+            col + '00'
+          );
+
+          ctx.fillStyle =
+            gradient;
+
+          ctx.beginPath();
+
+          ctx.arc(
+            0,
+            0,
+            glowRadius,
+            0,
+            Math.PI * 2
+          );
+
+          ctx.fill();
+        }
+
+        /*
+         * Corpo da lente.
+         */
+        ctx.fillStyle =
+          active
+            ? '#d8dce0'
+            : '#9aa1a9';
+
+        ctx.strokeStyle =
+          i === selected
+            ? '#ffffff'
+            : '#68717c';
+
+        ctx.lineWidth =
+          Math.max(1, 1.2 * zoom);
+
+        ctx.beginPath();
+
+        ctx.roundRect(
+          -s / 2,
+          -s / 2,
+          s,
+          s,
+          3 * zoom
+        );
+
+        ctx.fill();
+        ctx.stroke();
+
+        /*
+         * Área interna da lente.
+         */
+        const lensRadius =
+          Math.max(2, 5.2 * zoom);
+
+        ctx.beginPath();
+
+        ctx.arc(
+          0,
+          0,
+          lensRadius,
+          0,
+          Math.PI * 2
+        );
+
+        ctx.fillStyle =
+          active
+            ? col
+            : '#272d35';
+
+        ctx.fill();
+
+        /*
+         * Borda interna da lente.
+         */
+        ctx.strokeStyle =
+          active
+            ? col
+            : '#424952';
+
+        ctx.lineWidth =
+          Math.max(.7, .8 * zoom);
+
+        ctx.stroke();
+
+        /*
+         * Reflexo da lente.
+         */
+        ctx.beginPath();
+
+        ctx.arc(
+          -1.8 * zoom,
+          -1.8 * zoom,
+          Math.max(1, 1.5 * zoom),
+          0,
+          Math.PI * 2
+        );
+
+        ctx.fillStyle = '#ffffff';
+
+        ctx.globalAlpha =
+          active
+            ? 0.65
+            : 0.18;
+
+        ctx.fill();
+
+        ctx.globalAlpha = 1;
+
+        /*
+         * ============================================================
+         * INDICAÇÃO DE FLUXO DIN → DOUT NO COMPONENTE
+         * ============================================================
+         */
+
+        if (zoom > 0.7) {
+
+          ctx.fillStyle = '#73e6a1';
+
+          ctx.beginPath();
+
+          ctx.moveTo(
+            -s / 2 - 7 * zoom,
+            0
+          );
+
+          ctx.lineTo(
+            -s / 2 - 2 * zoom,
+            0
+          );
+
+          ctx.lineTo(
+            -s / 2 - 4 * zoom,
+            -2 * zoom
+          );
+
+          ctx.moveTo(
+            -s / 2 - 2 * zoom,
+            0
+          );
+
+          ctx.lineTo(
+            -s / 2 - 4 * zoom,
+            2 * zoom
+          );
+
+          ctx.strokeStyle = '#73e6a1';
+          ctx.lineWidth = Math.max(1, 1.1 * zoom);
+          ctx.stroke();
+
+          ctx.fillStyle = '#ffd27b';
+
+          ctx.beginPath();
+
+          ctx.moveTo(
+            s / 2 + 2 * zoom,
+            0
+          );
+
+          ctx.lineTo(
+            s / 2 + 7 * zoom,
+            0
+          );
+
+          ctx.lineTo(
+            s / 2 + 4 * zoom,
+            -2 * zoom
+          );
+
+          ctx.moveTo(
+            s / 2 + 7 * zoom,
+            0
+          );
+
+          ctx.lineTo(
+            s / 2 + 4 * zoom,
+            2 * zoom
+          );
+
+          ctx.strokeStyle = '#ffd27b';
+          ctx.lineWidth = Math.max(1, 1.1 * zoom);
+          ctx.stroke();
+        }
+
+        ctx.restore();
+
+        /*
+         * ============================================================
+         * IDENTIFICAÇÃO DO PIXEL
+         * ============================================================
+         */
+
+        if (zoom > 0.35) {
+
+          ctx.fillStyle =
+            i === selected
+              ? '#ffffff'
+              : '#aab4c7';
+
+          ctx.font =
+            `bold ${Math.max(8, 10 * zoom)}px ui-monospace`;
+
+          ctx.textAlign = 'center';
+          ctx.textBaseline = 'middle';
+
+          ctx.fillText(
+            '#' + (i + 1),
+            x,
+            y - 24 * zoom
+          );
+
+          /*
+           * Bytes RGB abaixo.
+           */
+          const mem =
+            l.mem ||
+            [l.r, l.g, l.b];
+
+          ctx.font =
+            `${Math.max(7, 8.5 * zoom)}px ui-monospace`;
+
+          ctx.fillStyle =
+            '#7f8da7';
+
+          ctx.fillText(
+            mem
+              .map(v =>
+                v
+                  .toString(16)
+                  .padStart(2, '0')
+                  .toUpperCase()
+              )
+              .join(' '),
+            x,
+            y + 25 * zoom
+          );
+        }
+
+        /*
+         * ============================================================
+         * PIXEL SELECIONADO
+         * ============================================================
+         */
+
+        if (i === selected) {
+
+          ctx.save();
+
+          ctx.strokeStyle =
+            '#ffffff';
+
+          ctx.lineWidth =
+            Math.max(1.5, 2 * zoom);
+
+          ctx.setLineDash([
+            5 * zoom,
+            4 * zoom
+          ]);
+
+          ctx.beginPath();
+
+          ctx.arc(
+            x,
+            y,
+            21 * zoom,
+            0,
+            Math.PI * 2
+          );
+
+          ctx.stroke();
+
+          ctx.setLineDash([]);
+
+          /*
+           * Pequenos marcadores de seleção.
+           */
+          const marker = 26 * zoom;
+
+          ctx.strokeStyle =
+            '#ffffff';
+
+          ctx.lineWidth =
+            Math.max(1, 1.5 * zoom);
+
+          ctx.beginPath();
+
+          ctx.moveTo(
+            x - marker,
+            y
+          );
+
+          ctx.lineTo(
+            x - marker + 6 * zoom,
+            y
+          );
+
+          ctx.moveTo(
+            x + marker,
+            y
+          );
+
+          ctx.lineTo(
+            x + marker - 6 * zoom,
+            y
+          );
+
+          ctx.moveTo(
+            x,
+            y - marker
+          );
+
+          ctx.lineTo(
+            x,
+            y - marker + 6 * zoom
+          );
+
+          ctx.moveTo(
+            x,
+            y + marker
+          );
+
+          ctx.lineTo(
+            x,
+            y + marker - 6 * zoom
+          );
+
+          ctx.stroke();
+
+          ctx.restore();
+        }
+      });
+
+      /*
+       * ================================================================
+       * DIN / DOUT EXTERNOS
+       * ================================================================
+       */
+
+      const first =
+        points[0];
+
+      const last =
+        points[points.length - 1];
+
+      /*
+       * Direção na entrada.
+       */
+      const firstNext =
+        points[Math.min(1, points.length - 1)];
+
+      const firstAngle =
+        Math.atan2(
+          firstNext[1] - first[1],
+          firstNext[0] - first[0]
+        );
+
+      /*
+       * Direção na saída.
+       */
+      const lastPrevious =
+        points[Math.max(0, points.length - 2)];
+
+      const lastAngle =
+        Math.atan2(
+          last[1] - lastPrevious[1],
+          last[0] - lastPrevious[0]
+        );
+
+      /*
+       * ------------------------------------------------
+       * DIN
+       * ------------------------------------------------
+       */
+
+      ctx.save();
+
+      ctx.translate(
+        first[0],
+        first[1]
+      );
+
+      ctx.rotate(firstAngle);
+
+      /*
+       * Cabo entrando na fita.
+       */
+      ctx.strokeStyle = '#73e6a1';
+      ctx.lineWidth = Math.max(2, 3 * zoom);
+      ctx.lineCap = 'round';
+
+      ctx.beginPath();
+
+      ctx.moveTo(
+        -55 * zoom,
+        0
+      );
+
+      ctx.lineTo(
+        -29 * zoom,
+        0
+      );
+
+      ctx.stroke();
+
+      /*
+       * Seta.
+       */
+      ctx.fillStyle = '#73e6a1';
+
+      ctx.beginPath();
+
+      ctx.moveTo(
+        -29 * zoom,
+        0
+      );
+
+      ctx.lineTo(
+        -37 * zoom,
+        -4 * zoom
+      );
+
+      ctx.lineTo(
+        -37 * zoom,
+        4 * zoom
+      );
+
+      ctx.closePath();
+
+      ctx.fill();
+
+      ctx.fillStyle = '#73e6a1';
+
+      ctx.font =
+        `bold ${Math.max(9, 11 * zoom)}px system-ui`;
+
+      ctx.textAlign = 'right';
+      ctx.textBaseline = 'bottom';
+
+      ctx.fillText(
+        'DIN',
+        -35 * zoom,
+        -7 * zoom
+      );
+
+      ctx.restore();
+
+      /*
+       * ------------------------------------------------
+       * DOUT
+       * ------------------------------------------------
+       */
+
+      ctx.save();
+
+      ctx.translate(
+        last[0],
+        last[1]
+      );
+
+      ctx.rotate(lastAngle);
+
+      /*
+       * Cabo saindo da fita.
+       */
+      ctx.strokeStyle = '#ffd27b';
+      ctx.lineWidth = Math.max(2, 3 * zoom);
+      ctx.lineCap = 'round';
+
+      ctx.beginPath();
+
+      ctx.moveTo(
+        29 * zoom,
+        0
+      );
+
+      ctx.lineTo(
+        55 * zoom,
+        0
+      );
+
+      ctx.stroke();
+
+      /*
+       * Seta.
+       */
+      ctx.fillStyle = '#ffd27b';
+
+      ctx.beginPath();
+
+      ctx.moveTo(
+        55 * zoom,
+        0
+      );
+
+      ctx.lineTo(
+        47 * zoom,
+        -4 * zoom
+      );
+
+      ctx.lineTo(
+        47 * zoom,
+        4 * zoom
+      );
+
+      ctx.closePath();
+
+      ctx.fill();
+
+      ctx.fillStyle = '#ffd27b';
+
+      ctx.font =
+        `bold ${Math.max(9, 11 * zoom)}px system-ui`;
+
+      ctx.textAlign = 'left';
+      ctx.textBaseline = 'bottom';
+
+      ctx.fillText(
+        'DOUT',
+        35 * zoom,
+        -7 * zoom
+      );
+
+      ctx.restore();
+
+      /*
+       * ================================================================
+       * LEGENDA DA FITA
+       * ================================================================
+       *
+       * Ajuda a transformar o desenho em uma ferramenta didática.
+       */
+
+      if (zoom > 0.55) {
+
+        ctx.save();
+
+        ctx.font =
+          `${Math.max(8, 9 * zoom)}px ui-monospace`;
+
+        ctx.textAlign = 'left';
+
+        const legendX = 20;
+        const legendY = h - 24;
+
+        ctx.fillStyle = '#8f99aa';
+
+        ctx.fillText(
+          'FITA WS2812B',
+          legendX,
+          legendY
+        );
+
+        ctx.fillStyle = '#6f7885';
+
+        ctx.fillText(
+          '• substrato',
+          legendX + 105,
+          legendY
+        );
+
+        ctx.fillText(
+          '• +5V',
+          legendX + 180,
+          legendY
+        );
+
+        ctx.fillText(
+          '• DATA',
+          legendX + 225,
+          legendY
+        );
+
+        ctx.fillText(
+          '• GND',
+          legendX + 280,
+          legendY
+        );
+
+        ctx.restore();
+      }
+
+      ctx.restore();
+    }
+    
+    function selectAt(mx, my) {
+      let best = -1, bd = 22;
+
+      for (let i = 0; i < leds.length; i++) {
+        let [x, y] = screen(leds[i]),
+          d = Math.hypot(mx - x, my - y);
+
+        if (d < bd) {
+          bd = d;
+          best = i
+        }
+      }
+
+      if (best >= 0) {
+        selected = best;
+        syncPanel();
+        draw()
+      }
+    }
+
+    canvas.addEventListener('pointerdown', e => {
+      canvas.setPointerCapture(e.pointerId);
+
+      let r = canvas.getBoundingClientRect();
+      let x = e.clientX - r.left,
+        y = e.clientY - r.top;
+
+      let before = selected;
+
+      selectAt(x, y);
+
+      if (before === selected) {
+        dragging = true;
+        lastX = e.clientX;
+        lastY = e.clientY;
+        canvas.classList.add('dragging')
+      }
+    });
+
+    canvas.addEventListener('pointermove', e => {
+      if (dragging) {
+        panX += e.clientX - lastX;
+        panY += e.clientY - lastY;
+        lastX = e.clientX;
+        lastY = e.clientY;
+        draw()
+      }
+    });
+
+    canvas.addEventListener('pointerup', () => {
+      dragging = false;
+      canvas.classList.remove('dragging')
+    });
+
+    canvas.addEventListener('wheel', e => {
+      e.preventDefault();
+
+      zoom *= e.deltaY < 0 ? 1.1 : .91;
+      zoom = Math.max(.2, Math.min(4, zoom));
+
+      draw()
+    }, { passive: false });
+
+    function bytesOf(l) {
+      return $('order').value === 'GRB'
+        ? [l.g, l.r, l.b]
+        : $('order').value === 'BRG'
+          ? [l.b, l.r, l.g]
+          : [l.r, l.g, l.b]
+    }
+
+    function bits3(a) {
+      return a.map(v => v.toString(2).padStart(8, '0')).join('')
+    }
+
+    function loadPipeline(l, a) {
+      l.shift = a.slice();
+      l.latch = a.slice();
+      l.received = a.slice();
+
+      let o = $('order').value;
+
+      if (o === 'GRB') {
+        l.g = a[0];
+        l.r = a[1];
+        l.b = a[2]
+      } else if (o === 'BRG') {
+        l.b = a[0];
+        l.r = a[1];
+        l.g = a[2]
+      } else {
+        [l.r, l.g, l.b] = a
+      }
+
+      l.mem = [l.r, l.g, l.b]
+    }
+
+    function setFromBytes(l, a) {
+      loadPipeline(l, a)
+    }
+
+    function transmit() {
+      const raw = $('bytes').value.trim();
+
+      let toks = raw
+        .replace(/,/g, ' ')
+        .split(/\s+/)
+        .filter(Boolean);
+
+      let vals = toks
+        .map(t => parseInt(t.replace(/^0x/i, ''), 16))
+        .filter(v => Number.isFinite(v))
+        .map(v => clamp(v));
+
+      for (let i = 0; i < leds.length; i++) {
+        leds[i].received = [];
+        leds[i].shift = [0, 0, 0];
+        leds[i].latch = [0, 0, 0]
+      }
+
+      for (
+        let i = 0;
+        i < Math.floor(vals.length / 3) && i < leds.length;
+        i++
+      ) {
+        setFromBytes(
+          leds[i],
+          vals.slice(i * 3, i * 3 + 3)
+        )
+      }
+
+      animStep = 0;
+      updateAll();
+      draw()
+    }
+
+    function applySelected() {
+      let l = leds[selected];
+
+      l.r = clamp(+$('er').value);
+      l.g = clamp(+$('eg').value);
+      l.b = clamp(+$('eb').value);
+      l.mem = [l.r, l.g, l.b];
+
+      const a = bytesOf(l);
+      l.shift = a.slice();
+      l.latch = a.slice();
+      l.received = a.slice();
+
+      updateAll();
+      draw()
+    }
+
+    function syncPanel() {
+      const l = leds[selected] || makeLed(0),
+        b = [l.r, l.g, l.b],
+        d = bytesOf(l),
+        bits = bits3(d);
+
+      $('selAddr').textContent = selected + 1;
+      $('selBits').textContent = bits;
+
+      $('selHex').textContent = d
+        .map(v => v.toString(16).padStart(2, '0').toUpperCase())
+        .join(' ');
+
+      $('mr').textContent = l.r.toString(16).padStart(2, '0').toUpperCase();
+      $('mg').textContent = l.g.toString(16).padStart(2, '0').toUpperCase();
+      $('mb').textContent = l.b.toString(16).padStart(2, '0').toUpperCase();
+
+      $('er').value = l.r;
+      $('eg').value = l.g;
+      $('eb').value = l.b;
+
+      $('big').textContent = '#' + (selected + 1);
+      $('big').style.background = rgbHex(l);
+      $('big').style.boxShadow = `0 0 55px ${rgbHex(l)}`;
+
+      ['r', 'g', 'b'].forEach((c, j) => {
+        $('d' + c).textContent = binary(b[j]);
+        $('p' + c).textContent = (b[j] / 255 * 100).toFixed(1) + '%';
+      });
+
+      const bitsEl = $('bits');
+      bitsEl.innerHTML = '';
+
+      for (let q of bits) {
+        let s = document.createElement('span');
+        s.className = 'bit ' + (q === '1' ? 'on' : '');
+        s.textContent = q;
+        bitsEl.appendChild(s)
+      }
+
+      updatePipeline(l)
+      updateEngineering();
+    }
+
+    function updatePipeline(l) {
+      if (!l) return;
+
+      const shiftBits = bits3(l.shift || bytesOf(l));
+
+      $('pipelinePixel').textContent = 'LED #' + (selected + 1);
+
+      $('shiftBits').innerHTML =
+        shiftBits.slice(0, 8) +
+        ' <span class="byteSep"> </span>' +
+        shiftBits.slice(8, 16) +
+        ' <span class="byteSep"> </span>' +
+        shiftBits.slice(16, 24);
+
+      const lr = l.latch
+        ? getRgbFromOrderedBytes(l.latch)
+        : { r: l.r, g: l.g, b: l.b };
+
+      $('latchR').textContent = 'R = ' + toHex(lr.r);
+      $('latchG').textContent = 'G = ' + toHex(lr.g);
+      $('latchB').textContent = 'B = ' + toHex(lr.b);
+
+      /*
+       * PWM
+       */
+      const pr = lr.r / 255 * 100;
+      const pg = lr.g / 255 * 100;
+      const pb = lr.b / 255 * 100;
+
+      $('pipelinePr').textContent = pr.toFixed(1).replace('.', ',') + '%';
+      $('pipelinePg').textContent = pg.toFixed(1).replace('.', ',') + '%';
+      $('pipelinePb').textContent = pb.toFixed(1).replace('.', ',') + '%';
+
+      $('pipelinePwmR').style.width = pr + '%';
+      $('pipelinePwmG').style.width = pg + '%';
+      $('pipelinePwmB').style.width = pb + '%';
+
+      $('pipelineBitsR').textContent = binary(lr.r);
+      $('pipelineBitsG').textContent = binary(lr.g);
+      $('pipelineBitsB').textContent = binary(lr.b);
+
+      $('pipelineValR').textContent = toHex(lr.r);
+      $('pipelineValG').textContent = toHex(lr.g);
+      $('pipelineValB').textContent = toHex(lr.b);
+
+      /*
+       * Saída RGB
+       */
+      const out = {
+        r: lr.r,
+        g: lr.g,
+        b: lr.b
+      };
+
+      $('pipelineRgb').textContent =
+        'RGB ' + toHex(out.r) + ' ' + toHex(out.g) + ' ' + toHex(out.b);
+
+      $('pipelineRgb').style.background = rgbHex(out);
+      $('pipelineRgb').style.color = '#fff';
+
+      $('pipelineRgbDot').style.background = rgbHex(out);
+      $('pipelineRgbDot').style.boxShadow =
+        `0 0 18px ${rgbHex(out)}`;
+
+      /*
+       * Mantém também o campo antigo selPwm atualizado.
+       */
+      $('selPwm').textContent =
+        pr.toFixed(1) + ' / ' +
+        pg.toFixed(1) + ' / ' +
+        pb.toFixed(1)
+    }
+
+    function getRgbFromOrderedBytes(a) {
+      const o = $('order').value;
+
+      if (o === 'GRB') {
+        return {
+          g: a[0] || 0,
+          r: a[1] || 0,
+          b: a[2] || 0
+        }
+      }
+
+      if (o === 'BRG') {
+        return {
+          b: a[0] || 0,
+          r: a[1] || 0,
+          g: a[2] || 0
+        }
+      }
+
+      return {
+        r: a[0] || 0,
+        g: a[1] || 0,
+        b: a[2] || 0
+      }
+    }
+
+    function toHex(v) {
+      return (v || 0)
+        .toString(16)
+        .padStart(2, '0')
+        .toUpperCase()
+    }
+
+    function binary(v) {
+      return v.toString(2).padStart(8, '0')
+    }
+
+    function calculateElectricalPath() {
+      const n = leds.length;
+
+      if (!n) {
+        return {
+          voltages: [],
+          currents: [],
+          injections: [],
+          startVoltage: 0,
+          middleVoltage: 0,
+          endVoltage: 0,
+          maxDrop: 0
+        };
+      }
+
+      const Vsource = +$('vs').value || 5;
+      const Rm = +$('rper').value || 0;
+      const length = +$('length').value || 0;
+
+      const injectionMode = $('powerInjection')
+        ? $('powerInjection').value
+        : 'start';
+
+      /*
+       * Corrente consumida por cada pixel.
+       */
+      const currents = leds.map(pixel => {
+        return 0.001 * (
+          (+$('ic').value || 0) +
+          ((+$('ir').value || 0) * pixel.r / 255) +
+          ((+$('ig').value || 0) * pixel.g / 255) +
+          ((+$('ib').value || 0) * pixel.b / 255)
+        );
+      });
+
+      /*
+       * Resistência total do trecho entre LEDs.
+       *
+       * A resistência informada é Ω/m.
+       */
+      const totalResistance = Rm * length;
+
+      /*
+       * Distância aproximada entre pixels.
+       */
+      const segmentLength =
+        n > 1
+          ? length / (n - 1)
+          : length;
+
+      const segmentResistance =
+        $('segmentResistance')
+          ? (+$('segmentResistance').value || 0)
+          : (Rm * segmentLength);
+
+      /*
+       * Pontos onde existe alimentação.
+       */
+      let injectionIndexes = [];
+
+      if (injectionMode === 'start') {
+        injectionIndexes = [0];
+      }
+
+      if (injectionMode === 'middle') {
+        injectionIndexes = [
+          0,
+          Math.floor((n - 1) / 2)
+        ];
+      }
+
+      if (injectionMode === 'both') {
+        injectionIndexes = [
+          0,
+          Math.floor((n - 1) / 2),
+          n - 1
+        ];
+      }
+
+      if (injectionMode === 'none') {
+        injectionIndexes = [];
+      }
+
+      const voltages = new Array(n).fill(0);
+
+      /*
+       * Alimentação em cada ponto divide a fita em trechos.
+       */
+      if (injectionIndexes.length === 0) {
+
+        /*
+         * Sem alimentação
+         */
+        voltages.fill(0);
+
+      } else {
+
+        for (let segment = 0; segment < injectionIndexes.length; segment++) {
+
+          const sourceIndex = injectionIndexes[segment];
+
+          const nextSource =
+            injectionIndexes[segment + 1] !== undefined
+              ? injectionIndexes[segment + 1]
+              : n - 1;
+
+          /*
+           * Lado esquerdo da fonte.
+           */
+          if (segment > 0) {
+
+            let voltage = Vsource;
+
+            for (let i = sourceIndex; i >= injectionIndexes[segment - 1]; i--) {
+
+              if (i === sourceIndex) {
+                voltages[i] = Vsource;
+                continue;
+              }
+
+              const downstreamCurrent =
+                currents
+                  .slice(i, sourceIndex + 1)
+                  .reduce((a, b) => a + b, 0);
+
+              voltage =
+                Vsource -
+                downstreamCurrent * segmentResistance *
+                Math.abs(sourceIndex - i);
+
+              voltages[i] = Math.max(0, voltage);
+            }
+          }
+
+          /*
+           * Lado direito da fonte.
+           */
+          let voltage = Vsource;
+
+          for (let i = sourceIndex; i <= nextSource; i++) {
+
+            if (i === sourceIndex) {
+              voltages[i] = Math.max(voltages[i], Vsource);
+              continue;
+            }
+
+            const downstreamCurrent =
+              currents
+                .slice(sourceIndex, i + 1)
+                .reduce((a, b) => a + b, 0);
+
+            voltage =
+              Vsource -
+              downstreamCurrent * segmentResistance *
+              (i - sourceIndex);
+
+            /*
+             * Se outro ponto de alimentação já calculou
+             * uma tensão maior, mantém a maior tensão local.
+             */
+            voltages[i] =
+              Math.max(
+                voltages[i] || 0,
+                Math.max(0, voltage)
+              );
+          }
+        }
+      }
+
+      const startVoltage = voltages[0] || 0;
+
+      const middleIndex =
+        Math.floor((n - 1) / 2);
+
+      const middleVoltage =
+        voltages[middleIndex] || 0;
+
+      const endVoltage =
+        voltages[n - 1] || 0;
+
+      const maxVoltage =
+        Math.max(...voltages);
+
+      const minVoltage =
+        Math.min(...voltages);
+
+      const maxDrop =
+        Math.max(
+          0,
+          maxVoltage - minVoltage
+        );
+
+      return {
+        voltages,
+        currents,
+        injections: injectionIndexes,
+        startVoltage,
+        middleVoltage,
+        endVoltage,
+        maxDrop,
+        totalResistance
+      };
+    }
+
+    function renderElectricalPath() {
+      const container = $('electricalStrip');
+
+      if (!container) return;
+
+      const result = calculateElectricalPath();
+
+      const {
+        voltages,
+        currents,
+        injections
+      } = result;
+
+      container.innerHTML = '';
+
+      /*
+       * Trilho elétrico.
+       */
+      const rail = document.createElement('div');
+      rail.className = 'electricalRail';
+
+      container.appendChild(rail);
+
+      /*
+       * Container dos pixels.
+       */
+      const pixels = document.createElement('div');
+      pixels.className = 'electricalPixels';
+
+      leds.forEach((led, i) => {
+
+        const voltage = voltages[i] || 0;
+        const current = currents[i] || 0;
+
+        const pixel = document.createElement('div');
+        pixel.className = 'electricalPixel';
+
+        /*
+         * Classificação visual.
+         */
+        let voltageClass = 'normal';
+
+        if (voltage < 4.0) {
+          voltageClass = 'critical';
+        } else if (voltage < 4.6) {
+          voltageClass = 'warning';
+        }
+
+        const node = document.createElement('div');
+        node.className =
+          'electricalPixelNode ' +
+          voltageClass;
+
+        /*
+         * Clique no LED elétrico também seleciona
+         * o LED no simulador principal.
+         */
+        node.onclick = () => {
+          selected = i;
+          syncPanel();
+          draw();
+        };
+
+        /*
+         * Ponto de injeção.
+         */
+        if (injections.includes(i)) {
+
+          const injection = document.createElement('div');
+          injection.className = 'electricalInjection';
+          injection.textContent = '5V';
+
+          pixel.appendChild(injection);
+        }
+
+        const label = document.createElement('span');
+        label.className = 'electricalPixelLabel';
+        label.textContent = 'LED ' + (i + 1);
+
+        const voltageText = document.createElement('span');
+        voltageText.className = 'electricalPixelVoltage';
+        voltageText.textContent =
+          voltage.toFixed(2) + 'V';
+
+        const currentText = document.createElement('span');
+        currentText.className = 'electricalPixelCurrent';
+        currentText.textContent =
+          (current * 1000).toFixed(1) + 'mA';
+
+        pixel.appendChild(node);
+        pixel.appendChild(label);
+        pixel.appendChild(voltageText);
+        pixel.appendChild(currentText);
+
+        pixels.appendChild(pixel);
+      });
+
+      container.appendChild(pixels);
+
+      /*
+       * Atualiza os valores resumidos.
+       */
+      $('electricalStartVoltage').textContent =
+        result.startVoltage.toFixed(2) + ' V';
+
+      $('electricalMiddleVoltage').textContent =
+        result.middleVoltage.toFixed(2) + ' V';
+
+      $('electricalEndVoltage').textContent =
+        result.endVoltage.toFixed(2) + ' V';
+
+      $('electricalMaxDrop').textContent =
+        result.maxDrop.toFixed(2) + ' V';
+
+      /*
+       * Fonte visual.
+       */
+      const vs = +$('vs').value || 5;
+      const imax = +$('imax').value || 10;
+
+      $('sourceVoltageVisual').textContent =
+        vs.toFixed(1) + 'V ' +
+        imax.toFixed(1) + 'A';
+
+      $('injectionSourceText').textContent =
+        vs.toFixed(1) + 'V ' +
+        imax.toFixed(1) + 'A';
+
+      /*
+       * Texto do estado da alimentação.
+       */
+      const mode = $('powerInjection')
+        ? $('powerInjection').value
+        : 'start';
+
+      const labels = {
+        start: 'Alimentação no início',
+        middle: 'Alimentação no início + meio',
+        both: 'Alimentação em três pontos',
+        none: 'Sem alimentação'
+      };
+
+      $('engInjectionStatus').textContent =
+        labels[mode] || 'Alimentação única';
+
+      /*
+       * Mostra/esconde ramificações do diagrama.
+       */
+      const middle = $('middleInjectionBranch');
+      const end = $('endInjectionBranch');
+
+      if (middle) {
+        middle.style.display =
+          mode === 'middle' || mode === 'both'
+            ? 'flex'
+            : 'none';
+      }
+
+      if (end) {
+        end.style.display =
+          mode === 'both'
+            ? 'flex'
+            : 'none';
+      }
+    }
+
+    function updateElectrical() {
+      const result = calculateElectricalPath();
+
+      const totalCurrent =
+        result.currents.reduce((sum, current) => sum + current, 0);
+
+      const voltage =
+        +$('vs').value || 5;
+
+      const power =
+        totalCurrent * voltage;
+
+      $('totalI').textContent =
+        totalCurrent.toFixed(2) + ' A';
+
+      $('power').textContent =
+        power.toFixed(1) + ' W';
+
+      $('drop').textContent =
+        result.maxDrop.toFixed(2) + ' V';
+
+      $('vEnd').textContent =
+        result.endVoltage.toFixed(2) + ' V';
+
+      const lim = +$('imax').value;
+
+      let msg;
+
+      if (totalCurrent > lim) {
+        msg =
+          `<span class="bad">Corrente acima do limite da fonte (${lim.toFixed(1)} A).</span>`;
+      } else if (result.maxDrop > 0.7) {
+        msg =
+          `<span class="warn">Queda de tensão significativa; considere injeção de alimentação.</span>`;
+      } else {
+        msg =
+          `<span class="good">Corrente dentro do limite configurado.</span>`;
+      }
+
+      $('elecMsg').innerHTML =
+        msg +
+        ' Modelo baseado na resistência da linha.';
+    }
+
+    function updateFlow() {
+      const f = $('flow');
+      f.innerHTML = '';
+
+      let n = Math.min(8, leds.length);
+
+      for (let i = 0; i < n; i++) {
+        let x = document.createElement('div');
+        x.className = 'f';
+
+        x.innerHTML =
+          '<b>#' + (i + 1) + '</b><br>' +
+          bytesOf(leds[i])
+            .map(v => v.toString(16).padStart(2, '0'))
+            .join(' ');
+
+        f.appendChild(x);
+
+        if (i < n - 1) {
+          let a = document.createElement('span');
+          a.className = 'arrow';
+          a.textContent = '→';
+          f.appendChild(a)
+        }
+      }
+
+      if (leds.length > n) {
+        let a = document.createElement('span');
+        a.className = 'arrow';
+        a.textContent = '→ ... → #' + leds.length;
+        f.appendChild(a)
+      }
+    }
+
+    /* MODO ENGENHARIA */
+
+    function resizeScope() {
+      if (!scopeCanvas) return;
+
+      const d = devicePixelRatio || 1;
+      const w = scopeCanvas.clientWidth;
+      const h = scopeCanvas.clientHeight;
+
+      scopeCanvas.width = w * d;
+      scopeCanvas.height = h * d;
+
+      scopeCtx.setTransform(d, 0, 0, d, 0, 0);
+
+      drawOscilloscope();
+    }
+
+    function drawOscilloscope() {
+
+      if (!scopeCanvas) return;
+
+      const w = scopeCanvas.clientWidth;
+      const h = scopeCanvas.clientHeight;
+
+      scopeCtx.clearRect(0, 0, w, h);
+
+      scopeCtx.fillStyle = '#050914';
+      scopeCtx.fillRect(0, 0, w, h);
+
+      /*
+       * Grade do osciloscópio
+       */
+      scopeCtx.strokeStyle = '#162139';
+      scopeCtx.lineWidth = 1;
+
+      const gx = 30;
+      const gy = 25;
+
+      for (let x = 0; x < w; x += gx) {
+        scopeCtx.beginPath();
+        scopeCtx.moveTo(x, 0);
+        scopeCtx.lineTo(x, h);
+        scopeCtx.stroke();
+      }
+
+      for (let y = 0; y < h; y += gy) {
+        scopeCtx.beginPath();
+        scopeCtx.moveTo(0, y);
+        scopeCtx.lineTo(w, y);
+        scopeCtx.stroke();
+      }
+
+      /*
+       * Linha central / referência de tensão
+       */
+      const highY = h * .27;
+      const lowY = h * .73;
+
+      scopeCtx.setLineDash([4, 4]);
+      scopeCtx.strokeStyle = '#34405e';
+
+      scopeCtx.beginPath();
+      scopeCtx.moveTo(0, highY);
+      scopeCtx.lineTo(w, highY);
+      scopeCtx.stroke();
+
+      scopeCtx.beginPath();
+      scopeCtx.moveTo(0, lowY);
+      scopeCtx.lineTo(w, lowY);
+      scopeCtx.stroke();
+
+      scopeCtx.setLineDash([]);
+
+      /*
+       * Valores do LED selecionado
+       */
+      const l = leds[selected];
+
+      if (!l) return;
+
+      const data = bits3(l.shift || bytesOf(l));
+
+      /*
+       * Cada bit recebe uma célula horizontal.
+       */
+      const left = 20;
+      const right = 12;
+      const available = w - left - right;
+
+      const bitWidth = available / Math.max(1, data.length);
+
+      /*
+       * Mantemos algumas células mesmo em telas pequenas.
+       */
+      const step = Math.max(7, bitWidth);
+
+      let x = left;
+
+      scopeCtx.beginPath();
+
+      /*
+       * Primeiro nível.
+       */
+      let first = data[0] === '1';
+
+      scopeCtx.moveTo(x, first ? highY : lowY);
+
+      for (let i = 0; i < data.length; i++) {
+
+        const bit = data[i] === '1';
+
+        const x1 = left + i * step;
+        const x2 = x1 + step;
+
+        const y = bit ? highY : lowY;
+
+        /*
+         * Transição vertical do bit anterior para o atual.
+         */
+        if (i > 0) {
+          const previous = data[i - 1] === '1';
+          const previousY = previous ? highY : lowY;
+
+          if (previousY !== y) {
+            scopeCtx.lineTo(x1, previousY);
+            scopeCtx.lineTo(x1, y);
+          } else {
+            scopeCtx.lineTo(x1, y);
+          }
+        }
+
+        scopeCtx.lineTo(x2, y);
+      }
+
+      scopeCtx.strokeStyle = '#dce6ff';
+      scopeCtx.lineWidth = 2;
+      scopeCtx.stroke();
+
+      /*
+       * Marcações dos bytes.
+       */
+      for (let i = 0; i <= 24; i += 8) {
+
+        const xByte = left + i * step;
+
+        if (xByte > w) break;
+
+        scopeCtx.strokeStyle = '#53617e';
+        scopeCtx.lineWidth = 1;
+
+        scopeCtx.beginPath();
+        scopeCtx.moveTo(xByte, 0);
+        scopeCtx.lineTo(xByte, h);
+        scopeCtx.stroke();
+
+        if (i < 24) {
+          scopeCtx.fillStyle = '#8290ae';
+          scopeCtx.font = '9px ui-monospace';
+          scopeCtx.fillText(
+            'BYTE ' + (i / 8 + 1),
+            xByte + 4,
+            h - 7
+          );
+        }
+      }
+
+      /*
+       * Labels de tensão.
+       */
+      scopeCtx.fillStyle = '#8290ae';
+      scopeCtx.font = '9px ui-monospace';
+
+      scopeCtx.fillText('5V', 4, highY - 4);
+      scopeCtx.fillText('0V', 4, lowY + 11);
+
+      /*
+       * Estado lógico dos bits.
+       */
+      scopeCtx.fillStyle = '#dce6ff';
+      scopeCtx.font = '10px ui-monospace';
+
+      const shown = data.match(/.{1,8}/g) || [];
+
+      shown.forEach((v, i) => {
+        const bx = left + i * 8 * step;
+
+        if (bx < w - 50) {
+          scopeCtx.fillText(
+            v,
+            bx + 3,
+            13
+          );
+        }
+      });
+    }
+
+    function updateEngineering() {
+
+      if (!engineeringMode) return;
+
+      const l = leds[selected];
+
+      if (!l) return;
+
+      const ordered = l.latch && l.latch.length
+        ? l.latch
+        : bytesOf(l);
+
+      const rgb = getRgbFromOrderedBytes(ordered);
+
+      const pr = rgb.r / 255 * 100;
+      const pg = rgb.g / 255 * 100;
+      const pb = rgb.b / 255 * 100;
+
+      /*
+       * Identificação
+       */
+      $('scopeLed').textContent = 'LED #' + (selected + 1);
+      $('engShiftLed').textContent = 'LED #' + (selected + 1);
+      $('engAddress').textContent = '#' + (selected + 1);
+
+      $('engRgb').textContent = [
+        toHex(rgb.r),
+        toHex(rgb.g),
+        toHex(rgb.b)
+      ].join(' ');
+
+      /*
+       * Shift Register
+       */
+      const shiftBits = bits3(l.shift || ordered);
+
+      $('engShiftBits').textContent =
+        shiftBits.slice(0, 8) + ' ' +
+        shiftBits.slice(8, 16) + ' ' +
+        shiftBits.slice(16, 24);
+
+      $('engBitCount').textContent = shiftBits.length;
+
+      const baud = +$('baud').value || 800000;
+
+      $('engBaud').textContent =
+        baud >= 1000000
+          ? (baud / 1000000).toFixed(2) + ' Mbit/s'
+          : Math.round(baud / 1000) + ' kbit/s';
+
+      /*
+       * Latch
+       */
+      $('engLatchR').textContent = toHex(rgb.r);
+      $('engLatchG').textContent = toHex(rgb.g);
+      $('engLatchB').textContent = toHex(rgb.b);
+      $('engOrder').textContent = $('order').value;
+
+      /*
+       * PWM
+       */
+      $('engPwmR').style.width = pr + '%';
+      $('engPwmG').style.width = pg + '%';
+      $('engPwmB').style.width = pb + '%';
+
+      $('engPwmRText').textContent =
+        pr.toFixed(1).replace('.', ',') + '%';
+
+      $('engPwmGText').textContent =
+        pg.toFixed(1).replace('.', ',') + '%';
+
+      $('engPwmBText').textContent =
+        pb.toFixed(1).replace('.', ',') + '%';
+
+      /*
+       * Eletrônica
+       */
+      let sum = 0;
+
+      for (const pixel of leds) {
+
+        sum += 0.001 * (
+          +$('ic').value +
+          (+$('ir').value * pixel.r / 255) +
+          (+$('ig').value * pixel.g / 255) +
+          (+$('ib').value * pixel.b / 255)
+        );
+      }
+
+      const V = +$('vs').value;
+      const L = +$('length').value;
+      const Rm = +$('rper').value;
+
+      const drop = sum * (Rm * L / 2);
+      const power = sum * V;
+
+      $('engVoltage').textContent =
+        V.toFixed(2) + ' V';
+
+      $('engCurrent').textContent =
+        sum.toFixed(2) + ' A';
+
+      $('engPower').textContent =
+        power.toFixed(2) + ' W';
+
+      $('engDrop').textContent =
+        drop.toFixed(2) + ' V';
+
+      const lim = +$('imax').value;
+
+      if (sum > lim) {
+        $('engElectricalStatus').innerHTML =
+          '<span class="bad">⚠ Corrente acima do limite da fonte.</span>';
+      } else if (drop > 0.7) {
+        $('engElectricalStatus').innerHTML =
+          '<span class="warn">⚠ Queda de tensão significativa.</span>';
+      } else {
+        $('engElectricalStatus').innerHTML =
+          '<span class="good">✓ Corrente dentro do limite configurado.</span>';
+      }
+
+      /*
+       * Redesenha o osciloscópio.
+       */
+      drawOscilloscope();
+    }
+
+    /*
+    * Converte a entrada atual em bytes.
+    */
+    function getTransmissionBytes() {
+      const raw = $('bytes').value.trim();
+
+      if (!raw) return [];
+
+      const tokens = raw
+        .replace(/,/g, ' ')
+        .split(/\s+/)
+        .filter(Boolean);
+
+      const bytes = [];
+
+      for (const token of tokens) {
+        const value = token.replace(/^0x/i, '');
+
+        if (!/^[0-9a-fA-F]{1,2}$/.test(value)) {
+          throw new Error(`Byte inválido: ${token}`);
+        }
+
+        bytes.push(parseInt(value, 16));
+      }
+
+      return bytes;
+    }
+
+    /*
+     * Converte todos os bytes em um fluxo único de bits.
+     */
+    function bytesToBitStream(bytes) {
+
+      const bits = [];
+
+      bytes.forEach(byte => {
+
+        const binaryValue =
+          byte.toString(2).padStart(8, '0');
+
+        for (const bit of binaryValue) {
+          bits.push(bit);
+        }
+
+      });
+
+      return bits;
+    }
+
+    /* Inicializa a decomposição. */
+    function resetBitDecomposition() {
+
+      const bytes = getTransmissionBytes();
+
+      bitDecomposition.bytes = bytes;
+      bitDecomposition.bits = bytesToBitStream(bytes);
+      bitDecomposition.cursor = 0;
+      bitDecomposition.led = 0;
+      bitDecomposition.ledBits = [];
+      bitDecomposition.started = false;
+      bitDecomposition.complete = false;
+
+      updateBitDecomposition();
+    }
+
+    /* Retorna os bits que pertencem a determinado LED. */
+    function getLedBitsFromStream(ledIndex) {
+
+      const start = ledIndex * 24;
+
+      return bitDecomposition.bits.slice(
+        start,
+        start + 24
+      );
+    }
+
+
+    /* Converte um grupo de 8 bits para hexadecimal. */
+    function bitsToHex(bits) {
+
+      if (!bits || bits.length === 0) {
+        return '00';
+      }
+
+      const value =
+        parseInt(bits.join(''), 2);
+
+      return value
+        .toString(16)
+        .padStart(2, '0')
+        .toUpperCase();
+    }
+
+
+    /*
+     * Atualiza visualmente todo o modo passo a passo.
+     */
+    function updateBitDecomposition() {
+
+      const d = bitDecomposition;
+
+      if (!$('bitInputFlow')) return;
+
+      const bytes = d.bytes || [];
+      const bits = d.bits || [];
+
+      /*
+       * Entrada original.
+       */
+      const input = $('bitInputFlow');
+
+      input.innerHTML = '';
+
+      bytes.forEach((byte, byteIndex) => {
+
+        const byteBits = byte
+          .toString(2)
+          .padStart(8, '0');
+
+        const byteContainer =
+          document.createElement('span');
+
+        byteContainer.style.marginRight = '8px';
+
+        for (let j = 0; j < 8; j++) {
+
+          const globalBit =
+            byteIndex * 8 + j;
+
+          const span =
+            document.createElement('span');
+
+          span.textContent =
+            byteBits[j];
+
+          if (globalBit < d.cursor) {
+            span.className = 'consumed';
+          } else if (globalBit === d.cursor) {
+            span.className = 'current';
+          } else {
+            span.className = 'remaining';
+          }
+
+          byteContainer.appendChild(span);
+        }
+
+        input.appendChild(byteContainer);
+      });
+
+
+      /*
+       * Contadores.
+       */
+      $('bitInputConsumed').textContent =
+        d.cursor + ' bits consumidos';
+
+      const remainingBits =
+        Math.max(0, bits.length - d.cursor);
+
+      $('bitInputRemaining').textContent =
+        Math.ceil(remainingBits / 8) +
+        ' bytes restantes';
+
+
+      /*
+       * LED atual.
+       */
+      const currentLed =
+        d.led + 1;
+
+      $('bitStepLed').textContent =
+        'LED #' + currentLed;
+
+      $('bitCurrentLed').textContent =
+        'LED #' + currentLed;
+
+
+      /*
+       * Bits já recebidos pelo LED.
+       */
+      const ledStart = d.led * 24;
+
+      const ledBits =
+        bits.slice(
+          ledStart,
+          Math.min(
+            ledStart + 24,
+            d.cursor
+          )
+        );
+
+      d.ledBits = ledBits;
+
+
+      /*
+       * Byte que contém o bit atual.
+       */
+      const currentBit =
+        bits[d.cursor];
+
+      if (currentBit !== undefined) {
+
+        const byteIndex =
+          Math.floor(d.cursor / 8);
+
+        const currentByte =
+          bytes[byteIndex] ?? 0;
+
+        $('bitCurrentByte').textContent =
+          currentByte
+            .toString(16)
+            .padStart(2, '0')
+            .toUpperCase();
+
+      } else {
+
+        $('bitCurrentByte').textContent =
+          '--';
+      }
+
+      /*
+       * Posição do bit dentro dos 24 bits do LED.
+       */
+      const positionInsideLed =
+        Math.min(
+          24,
+          Math.max(
+            0,
+            d.cursor - ledStart + 1
+          )
+        );
+
+      $('bitPosition').textContent =
+        d.complete
+          ? 24
+          : positionInsideLed;
+
+      /*
+       * Visualização binária do byte atual.
+       */
+      const binaryBox =
+        $('bitBinaryValue');
+
+      binaryBox.innerHTML = '';
+
+      if (currentBit !== undefined) {
+
+        const byteIndex =
+          Math.floor(d.cursor / 8);
+
+        const byteBits =
+          bytes[byteIndex]
+            .toString(2)
+            .padStart(8, '0');
+
+        const bitInsideByte =
+          d.cursor % 8;
+
+        for (let i = 0; i < 8; i++) {
+
+          const span =
+            document.createElement('span');
+
+          span.textContent =
+            byteBits[i];
+
+          if (i < bitInsideByte) {
+            span.className = 'done';
+          }
+
+          if (i === bitInsideByte) {
+            span.className = 'current';
+          }
+
+          binaryBox.appendChild(span);
+        }
+
+      } else {
+
+        for (let i = 0; i < 8; i++) {
+
+          const span =
+            document.createElement('span');
+
+          span.textContent = '0';
+          span.className = 'done';
+
+          binaryBox.appendChild(span);
+        }
+      }
+
+      /*
+       * Shift Register do LED atual.
+       */
+      const shift =
+        $('bitShiftRegister');
+
+      shift.innerHTML = '';
+
+      for (let byteIndex = 0; byteIndex < 3; byteIndex++) {
+
+        const byteBits =
+          ledBits.slice(
+            byteIndex * 8,
+            byteIndex * 8 + 8
+          );
+
+        const span =
+          document.createElement('span');
+
+        if (byteBits.length === 0) {
+
+          span.textContent =
+            '00000000';
+
+          span.className =
+            'empty';
+
+        } else {
+
+          span.textContent =
+            byteBits.join('') +
+            '0'.repeat(
+              8 - byteBits.length
+            );
+
+        }
+
+        shift.appendChild(span);
+      }
+
+      /*
+       * Restante que será retransmitido pelo DOUT.
+       */
+      const remaining =
+        bits.slice(d.cursor);
+
+      const remainingBytes = [];
+
+      for (
+        let i = 0;
+        i < remaining.length;
+        i += 8
+      ) {
+
+        const group =
+          remaining.slice(i, i + 8);
+
+        if (group.length === 8) {
+          remainingBytes.push(
+            bitsToHex(group)
+          );
+        }
+      }
+
+      $('bitRemainingFlow').textContent =
+        remainingBytes.length
+          ? remainingBytes.join(' ')
+          : '--';
+
+
+      $('bitRemainingCount').textContent =
+        remainingBytes.length +
+        ' bytes restantes';
+
+      /*
+       * Progresso dos 24 bits do LED.
+       */
+      const ledProgress =
+        Math.min(
+          24,
+          Math.max(
+            0,
+            d.cursor - ledStart
+          )
+        );
+
+      $('bitProgressText').textContent =
+        ledProgress + ' / 24 bits';
+
+      $('bitProgressFill').style.width =
+        (ledProgress / 24 * 100) + '%';
+
+      /*
+       * Estado textual.
+       */
+      const status =
+        $('bitStoreStatus');
+
+      if (d.complete) {
+
+        status.textContent =
+          '✓ Transmissão concluída. Todos os bits foram consumidos.';
+
+        status.classList.add('stored');
+
+        $('bitExplanation').textContent =
+          'O último LED recebeu seus 24 bits e não existe mais dados no DOUT.';
+
+      } else if (ledProgress === 24) {
+
+        status.textContent =
+          '✓ 24 bits recebidos → ARMAZENA → próximo bit segue pelo DOUT.';
+
+        status.classList.add('stored');
+
+        $('bitExplanation').textContent =
+          'O LED completou seus 24 bits. O próximo bit será encaminhado ao próximo LED.';
+
+      } else if (d.cursor > ledStart) {
+
+        status.textContent =
+          'Shift Register recebendo bits...';
+
+        status.classList.remove('stored');
+
+        $('bitExplanation').textContent =
+          'O CI está acumulando os bits no Shift Register. Ainda não completou os 24 bits.';
+
+      } else {
+
+        status.textContent =
+          'Aguardando bits...';
+
+        status.classList.remove('stored');
+
+        $('bitExplanation').textContent =
+          'Pressione "Próximo bit" para acompanhar o fluxo bit a bit.';
+      }
+    }
+
+    /*
+     * Consome exatamente UM bit.
+     */
+    function nextBit() {
+
+      const d = bitDecomposition;
+
+      if (!d.bits.length) {
+
+        resetBitDecomposition();
+
+        if (!d.bits.length) return;
+      }
+
+      if (d.complete) return;
+
+
+      /*
+       * Consome o bit atual.
+       */
+      d.started = true;
+
+      d.cursor++;
+
+      const nextLed =
+        Math.floor(d.cursor / 24);
+
+      const oldLed =
+        d.led;
+
+      if (
+        d.cursor % 24 === 0 &&
+        d.cursor < d.bits.length
+      ) {
+
+        d.led = nextLed;
+
+        /*
+         * Se existe um LED real correspondente,
+         * atualiza a visualização dele.
+         */
+        if (leds[d.led]) {
+          selected = d.led;
+        }
+
+        syncPanel();
+        draw();
+      }
+
+
+      /*
+       * Fim da transmissão.
+       */
+      if (d.cursor >= d.bits.length) {
+
+        d.cursor = d.bits.length;
+        d.complete = true;
+
+        const lastLed =
+          Math.floor(
+            Math.max(0, d.cursor - 1) / 24
+          );
+
+        d.led =
+          Math.min(
+            lastLed,
+            Math.max(0, leds.length - 1)
+          );
+
+      }
+
+      updateBitDecomposition();
+    }
+
+    function updateAll() {
+      syncPanel();
+      updateElectrical();
+      updateFlow();
+      updateEngineering();
+      renderElectricalPath();
+      draw()
+    }
+
+    $('rebuild').onclick = rebuild;
+    $('send').onclick = transmit;
+    $('applyLed').onclick = applySelected;
+    $('nextBit').onclick = nextBit;
+    $('resetBits').onclick = () => {
+      resetBitDecomposition();
+    };
+    $('engineeringToggle').onclick = () => {
+
+      engineeringMode = !engineeringMode;
+
+      const workspace = document.querySelector('.workspace');
+      const button = $('engineeringToggle');
+
+      workspace.classList.toggle(
+        'engineeringActive',
+        engineeringMode
+      );
+
+      button.classList.toggle(
+        'engineButtonActive',
+        engineeringMode
+      );
+
+      button.textContent =
+        engineeringMode
+          ? '✕ Fechar Engenharia'
+          : '🔬 Modo Engenharia';
+
+      requestAnimationFrame(() => {
+        resize();
+        resizeScope();
+        updateEngineering();
+      });
+    };
+
+    $('clear').onclick = () => {
+      leds.forEach(l => {
+        l.r = l.g = l.b = 0;
+        l.mem = [0, 0, 0];
+        l.received = [0, 0, 0];
+        l.shift = [0, 0, 0];
+        l.latch = [0, 0, 0]
+      });
+
+      updateAll()
+    }
+
+    $('resetView').onclick = () => {
+      centerView();
+      draw()
+    }
+
+    $('step').onclick = () => {
+      if (!leds.length) return;
+
+      selected = Math.min(
+        selected + 1,
+        leds.length - 1
+      );
+
+      syncPanel();
+      draw()
+    }
+
+    $('play').onclick = () => {
+      anim = !anim;
+
+      $('play').textContent =
+        anim
+          ? '⏸ Parar'
+          : '▶ Animar decomposição';
+
+      if (anim) animate()
+    }
+
+    function animate() {
+      if (!anim) return;
+
+      selected = animStep % leds.length;
+      animStep++;
+
+      syncPanel();
+      draw();
+
+      setTimeout(animate, 260)
+    }
+
+    ['vs', 'imax', 'rper', 'length', 'ir', 'ig', 'ib', 'ic', 'order']
+      .forEach(id => {
+        $(id).addEventListener('input', updateAll)
+      });
+
+    $('powerInjection').addEventListener('change', updateAll);
+
+    $('segmentResistance').addEventListener('input', updateAll);
+
+    $('count').addEventListener('change', rebuild);
+
+    $('spacing').addEventListener('input', () => {
+      layoutLeds();
+      draw()
+    });
+
+    $('curve').addEventListener('input', () => {
+      layoutLeds();
+      draw()
+    });
+
+    $('layout').addEventListener('change', () => {
+      layoutLeds();
+      centerView();
+      draw()
+    });
+    rebuild();
+    resetBitDecomposition();
+    resize();
+  </script>
+</body>
+
+</html>
