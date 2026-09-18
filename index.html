@@ -4021,7 +4021,13 @@
       syncPanel();
       draw();
 
-      setTimeout(animate, 260)
+      if (engineeringMode) {
+        updateEngineering();
+      }
+
+      setTimeout(() => {
+        if (anim) requestAnimationFrame(animate);
+      }, 260);
     }
 
     ['vs', 'imax', 'rper', 'length', 'ir', 'ig', 'ib', 'ic', 'order']
