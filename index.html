@@ -11,8 +11,8 @@
 <body>
   <header>
     <h1>Simulador didático de LED endereçável</h1>
-    <div class="sub">Modelo elétrico e lógico inspirado em WS2812B: fluxo serial → 24 bits consumidos por pixel →
-      restante regenerado para o próximo.</div>
+    <div class="sub">Modelo elétrico e lógico inspirado em WS2812B: fluxo serial → 24 bits consumidos por pixel → restante regenerado para o próximo.
+    </div>
   </header>
   <div class="app">
     <aside class="panel left">
@@ -37,35 +37,28 @@
           <button id="clear">Limpar memória</button>
         </div>
         <div class="frameEditor">
-
           <div class="frameHeader">
             <h3>Sequência de frames</h3>
             <span id="frameCounter">Frame 0 / 0</span>
           </div>
-
           <div class="row">
             <button id="addFrame">＋ Adicionar frame</button>
             <button id="updateFrame">Atualizar frame</button>
             <button id="deleteFrame">Excluir frame</button>
           </div>
-
           <div class="row" style="margin-top:6px">
             <button id="prevFrame">◀ Anterior</button>
             <button id="nextFrame">Próximo ▶</button>
             <button id="playFrames">▶ Reproduzir</button>
           </div>
-
           <label>Intervalo entre frames (ms)</label>
           <input id="frameInterval" type="number" min="20" step="10" value="200">
-
           <div id="frameList" class="frameList"></div>
-
           <div class="small">
             Cada frame armazena o estado completo da fita.
             Edite os LEDs normalmente e use "Adicionar frame" para criar
             uma nova posição na animação.
           </div>
-
         </div>
         <label>Velocidade do protocolo</label><input id="baud" type="number" value="800000" min="100000" step="10000">
         <div class="small">WS2812B típico: 800 kbit/s. Cada pixel recebe 24 bits (3 bytes). A ordem de bytes é
@@ -97,7 +90,6 @@
         <div class="small">Modelo resistivo simplificado: queda de tensão = I × R. Para uma fita real, resistência
           depende do trilho, cobre, geometria e pontos de injeção.</div>
       </div>
-
       <div class="card">
         <h2>Interação</h2>
         <div class="small">Arraste a fita no espaço central. Clique em um pixel para selecioná-lo. Roda do mouse = zoom.
@@ -715,9 +707,7 @@
     }
 
     function rebuild() {
-
       stopFrames();
-
       const n =
         Math.max(
           1,
@@ -739,12 +729,8 @@
           n - 1
         );
 
-      /*
-       * Ajusta todos os frames à nova quantidade
-       * de LEDs.
-       */
+      /* Ajusta todos os frames à nova quantidade de LEDs.*/
       frames = frames.map(frame => {
-
         return Array.from(
           { length: n },
           (_, i) => frame[i]
@@ -759,7 +745,6 @@
               b: 0
             }
         );
-
       });
 
       if (currentFrame >= frames.length) {
@@ -770,15 +755,12 @@
       layoutLeds();
       centerView();
 
-      /*
-       * Se existir um frame, restaura ele.
-       */
+      /* Se existir um frame, restaura ele.*/
       if (currentFrame >= 0) {
         applyFrame(currentFrame);
       } else {
         updateAll();
       }
-
       updateFrameUI();
     }
 
@@ -853,14 +835,9 @@
       const h = canvas.clientHeight;
 
       ctx.clearRect(0, 0, w, h);
-
       ctx.save();
 
-      /*
-       * ================================================================
-       * GRID DO WORKSPACE
-       * ================================================================
-       */
+      /*GRID DO WORKSPACE*/
 
       ctx.strokeStyle = '#121b2d';
       ctx.lineWidth = 1;
@@ -889,28 +866,15 @@
         ctx.stroke();
       }
 
-      /*
-       * ================================================================
-       * FITA
-       * ================================================================
-       */
+      /*FITA*/
 
       if (!leds.length) {
         ctx.restore();
         return;
       }
 
-      /*
-       * Converte os LEDs para coordenadas de tela.
-       */
+      /*Converte os LEDs para coordenadas de tela.*/
       const points = leds.map(l => screen(l));
-
-      /*
-       * ------------------------------------------------
-       * Função auxiliar:
-       * desenha a linha central seguindo todos os pontos.
-       * ------------------------------------------------
-       */
 
       function drawPath() {
         ctx.beginPath();
@@ -923,17 +887,6 @@
           }
         });
       }
-
-      /*
-       * ================================================================
-       * CORPO DA FITA
-       * ================================================================
-       *
-       * A fita agora é uma superfície contínua.
-       *
-       * A primeira camada funciona como sombra/borda.
-       * A segunda representa o silicone/PCB.
-       */
 
       drawPath();
 
@@ -951,58 +904,23 @@
       ctx.lineJoin = 'round';
       ctx.stroke();
 
-      /*
-       * Pequena iluminação na superfície da fita.
-       */
       drawPath();
 
       ctx.strokeStyle = '#303741';
       ctx.lineWidth = Math.max(3, 26 * zoom);
       ctx.stroke();
 
-      /*
-       * ================================================================
-       * TRILHAS DE COBRE
-       * ================================================================
-       *
-       * Em uma fita real existem trilhas longitudinais.
-       *
-       * Aqui usamos:
-       *
-       *     +5V
-       *     DATA
-       *     GND
-       *
-       * Os offsets são calculados de acordo com a direção local
-       * da fita para continuarem corretos em curvas.
-       */
-
       function drawRail(offset, color, width) {
-
         if (points.length < 2) return;
-
         ctx.beginPath();
-
         points.forEach(([x, y], i) => {
-
-          const previous =
-            points[Math.max(0, i - 1)];
-
-          const next =
-            points[Math.min(points.length - 1, i + 1)];
-
+          const previous = points[Math.max(0, i - 1)];
+          const next = points[Math.min(points.length - 1, i + 1)];
           const dx = next[0] - previous[0];
           const dy = next[1] - previous[1];
-
-          const length =
-            Math.hypot(dx, dy) || 1;
-
-          /*
-           * Vetor normal à direção da fita.
-           */
+          const length = Math.hypot(dx, dy) || 1;
           const nx = -dy / length;
           const ny = dx / length;
-
           const px = x + nx * offset * zoom;
           const py = y + ny * offset * zoom;
 
@@ -1020,63 +938,27 @@
         ctx.stroke();
       }
 
-      /*
-       * Trilho +5V
-       */
-      drawRail(
-        -8,
-        '#8c6935',
-        1.5
-      );
+      /* Trilho +5V*/
+      drawRail(-8,'#8c6935',1.5);
 
-      /*
-       * Trilho DATA
-       */
-      drawRail(
-        0,
-        '#a08042',
-        1.2
-      );
+      /*Trilho DATA*/
+      drawRail(0,'#a08042',1.2);
 
-      /*
-       * Trilho GND
-       */
-      drawRail(
-        8,
-        '#765a32',
-        1.5
-      );
+      /*Trilho GND*/
+      drawRail(8,'#765a32',1.5);
 
-      /*
-       * ================================================================
-       * MARCAÇÕES DE POLARIDADE
-       * ================================================================
-       */
-
+      /*MARCAÇÕES DE POLARIDADE*/
       function drawPolarityMark(index, symbol, offset) {
-
         const [x, y] = points[index];
-
-        const previous =
-          points[Math.max(0, index - 1)];
-
-        const next =
-          points[Math.min(points.length - 1, index + 1)];
-
+        const previous = points[Math.max(0, index - 1)];
+        const next = points[Math.min(points.length - 1, index + 1)];
         const dx = next[0] - previous[0];
         const dy = next[1] - previous[1];
-
-        const length =
-          Math.hypot(dx, dy) || 1;
-
+        const length = Math.hypot(dx, dy) || 1;
         const nx = -dy / length;
         const ny = dx / length;
-
-        const px =
-          x + nx * offset * zoom;
-
-        const py =
-          y + ny * offset * zoom;
+        const px = x + nx * offset * zoom;
+        const py = y + ny * offset * zoom;
 
         ctx.save();
 
@@ -1094,329 +976,112 @@
         ctx.restore();
       }
 
-      /*
-       * Polaridade aparece apenas quando há espaço suficiente.
-       */
+      /*Polaridade aparece apenas quando há espaço suficiente.*/
       if (zoom > 0.35) {
-
         for (let i = 0; i < leds.length; i += 3) {
-
-          drawPolarityMark(
-            i,
-            '+',
-            -8
-          );
-
-          drawPolarityMark(
-            i,
-            '−',
-            8
-          );
+          drawPolarityMark(i,'+',-8);
+          drawPolarityMark(i,'−',8);
         }
       }
 
-      /*
-       * ================================================================
-       * ÁREAS DE CORTE
-       * ================================================================
-       */
-
+      /*ÁREAS DE CORTE*/
       if (points.length > 1 && zoom > 0.35) {
-
         for (let i = 3; i < points.length; i += 3) {
-
           const [x, y] = points[i];
-
-          const previous =
-            points[Math.max(0, i - 1)];
-
-          const next =
-            points[Math.min(points.length - 1, i + 1)];
-
+          const previous = points[Math.max(0, i - 1)];
+          const next = points[Math.min(points.length - 1, i + 1)];
           const dx = next[0] - previous[0];
           const dy = next[1] - previous[1];
-
-          const angle =
-            Math.atan2(dy, dx);
+          const angle = Math.atan2(dy, dx);
 
           ctx.save();
-
           ctx.translate(x, y);
           ctx.rotate(angle + Math.PI / 2);
 
-          /*
-           * Área de corte.
-           */
+          /*Área de corte.*/
           ctx.strokeStyle = '#727b87';
           ctx.lineWidth = Math.max(1, 1.1 * zoom);
 
-          ctx.setLineDash([
-            3 * zoom,
-            3 * zoom
-          ]);
-
+          ctx.setLineDash([3 * zoom,3 * zoom]);
           ctx.beginPath();
-
-          ctx.moveTo(
-            0,
-            -13 * zoom
-          );
-
-          ctx.lineTo(
-            0,
-            13 * zoom
-          );
-
+          ctx.moveTo(0,-13 * zoom);
+          ctx.lineTo(0,13 * zoom);
           ctx.stroke();
-
           ctx.setLineDash([]);
-
-          /*
-           * Pequenas marcas metálicas.
-           */
           ctx.fillStyle = '#aeb6c0';
 
-          ctx.fillRect(
-            -1.5 * zoom,
-            -14 * zoom,
-            3 * zoom,
-            3 * zoom
-          );
+          ctx.fillRect(-1.5 * zoom,-14 * zoom,3 * zoom,3 * zoom);
 
-          ctx.fillRect(
-            -1.5 * zoom,
-            11 * zoom,
-            3 * zoom,
-            3 * zoom
-          );
+          ctx.fillRect(-1.5 * zoom,11 * zoom,3 * zoom,3 * zoom);
 
           ctx.restore();
         }
       }
 
-      /*
-       * ================================================================
-       * COMPONENTES
-       * ================================================================
-       */
-
+      /*COMPONENTES*/
       leds.forEach((l, i) => {
-
         const [x, y] = points[i];
-
-        /*
-         * Direção da fita naquele ponto.
-         */
-        const previous =
-          points[Math.max(0, i - 1)];
-
-        const next =
-          points[Math.min(points.length - 1, i + 1)];
-
-        const dx =
-          next[0] - previous[0];
-
-        const dy =
-          next[1] - previous[1];
-
-        const angle =
-          Math.atan2(dy, dx);
+        const previous = points[Math.max(0, i - 1)];
+        const next = points[Math.min(points.length - 1, i + 1)];
+        const dx = next[0] - previous[0];
+        const dy = next[1] - previous[1];
+        const angle = Math.atan2(dy, dx);
 
         ctx.save();
 
         ctx.translate(x, y);
         ctx.rotate(angle);
 
-        /*
-         * ============================================================
-         * PADS DO COMPONENTE
-         * ============================================================
-         */
+        /*PADS DO COMPONENTE*/
 
-        const s = Math.max(
-          8,
-          18 * zoom
-        );
+        const s = Math.max(8,18 * zoom);
+        const padLength = Math.max(2, 4 * zoom);
+        const padWidth = Math.max(2, 4.5 * zoom);
 
-        const padLength =
-          Math.max(2, 4 * zoom);
-
-        const padWidth =
-          Math.max(2, 4.5 * zoom);
-
-        /*
-         * Pads metálicos laterais.
-         */
+        /*Pads metálicos laterais.*/
         ctx.fillStyle = '#b8904b';
-
-        ctx.fillRect(
-          -s / 2 - padLength,
-          -padWidth / 2,
-          padLength,
-          padWidth
-        );
-
-        ctx.fillRect(
-          s / 2,
-          -padWidth / 2,
-          padLength,
-          padWidth
-        );
-
-        /*
-         * Pequenos reflexos nos pads.
-         */
+        ctx.fillRect(-s / 2 - padLength,-padWidth / 2,padLength,padWidth);
+        ctx.fillRect(s / 2,-padWidth / 2,padLength,padWidth);
         ctx.fillStyle = '#e0bd76';
+        ctx.fillRect(-s / 2 - padLength,-padWidth / 2,padLength,Math.max(1, zoom));
+        ctx.fillRect(s / 2,-padWidth / 2,padLength,Math.max(1, zoom));
 
-        ctx.fillRect(
-          -s / 2 - padLength,
-          -padWidth / 2,
-          padLength,
-          Math.max(1, zoom)
-        );
+        const chipW = Math.max(5, 9 * zoom);
 
-        ctx.fillRect(
-          s / 2,
-          -padWidth / 2,
-          padLength,
-          Math.max(1, zoom)
-        );
+        const chipH = Math.max(4, 7 * zoom);
 
-        /*
-         * ============================================================
-         * CI WS2812B
-         * ============================================================
-         *
-         * Representação didática:
-         *
-         *       ┌───────────┐
-         * DIN → │  WS2812B  │ → DOUT
-         *       └───────────┘
-         */
-
-        const chipW =
-          Math.max(5, 9 * zoom);
-
-        const chipH =
-          Math.max(4, 7 * zoom);
-
-        /*
-         * Corpo escuro do CI.
-         */
-        ctx.fillStyle =
-          i === selected
-            ? '#101722'
-            : '#0b0f15';
-
-        ctx.strokeStyle =
-          i === selected
-            ? '#91a9c7'
-            : '#4d5662';
-
-        ctx.lineWidth =
-          Math.max(0.7, 1 * zoom);
-
+        ctx.fillStyle = i === selected? '#101722': '#0b0f15';
+        ctx.strokeStyle = i === selected? '#91a9c7': '#4d5662';
+        ctx.lineWidth = Math.max(0.7, 1 * zoom);
         ctx.beginPath();
-
-        ctx.roundRect(
-          -chipW / 2,
-          -chipH / 2,
-          chipW,
-          chipH,
-          1.5 * zoom
-        );
-
+        ctx.roundRect(-chipW / 2,-chipH / 2,chipW,chipH,1.5 * zoom);
         ctx.fill();
         ctx.stroke();
-
-        /*
-         * Pequeno ponto de orientação do CI.
-         */
         ctx.fillStyle = '#798392';
-
         ctx.beginPath();
-
-        ctx.arc(
-          -chipW / 2 + 2 * zoom,
-          -chipH / 2 + 2 * zoom,
-          Math.max(0.8, 1 * zoom),
-          0,
-          Math.PI * 2
-        );
-
+        ctx.arc( -chipW / 2 + 2 * zoom, -chipH / 2 + 2 * zoom,  Math.max(0.8, 1 * zoom), 0, Math.PI * 2);
         ctx.fill();
 
-        /*
-         * ============================================================
-         * LED RGB 5050
-         * ============================================================
-         */
+        /*LED RGB 5050*/
+        const col = rgbHex(l);
+        const active = l.r > 0 || l.g > 0 || l.b > 0;
 
-        const col =
-          rgbHex(l);
-
-        const active =
-          l.r > 0 ||
-          l.g > 0 ||
-          l.b > 0;
-
-        /*
-         * Glow.
-         */
+        /* Glow.*/
         if (active) {
+          const glowRadius = Math.max(10, 22 * zoom);
+          const gradient = ctx.createRadialGradient(0,0,0,0,0,glowRadius);
 
-          const glowRadius =
-            Math.max(10, 22 * zoom);
+          gradient.addColorStop( 0, col + 'EE');
+          gradient.addColorStop(0.25,col + 'AA');
+          gradient.addColorStop(0.55,col + '44');
+          gradient.addColorStop(1,col + '00');
 
-          const gradient =
-            ctx.createRadialGradient(
-              0,
-              0,
-              0,
-              0,
-              0,
-              glowRadius
-            );
-
-          gradient.addColorStop(
-            0,
-            col + 'EE'
-          );
-
-          gradient.addColorStop(
-            0.25,
-            col + 'AA'
-          );
-
-          gradient.addColorStop(
-            0.55,
-            col + '44'
-          );
-
-          gradient.addColorStop(
-            1,
-            col + '00'
-          );
-
-          ctx.fillStyle =
-            gradient;
-
+          ctx.fillStyle = gradient;
           ctx.beginPath();
-
-          ctx.arc(
-            0,
-            0,
-            glowRadius,
-            0,
-            Math.PI * 2
-          );
-
+          ctx.arc( 0, 0, glowRadius, 0, Math.PI * 2);
           ctx.fill();
         }
 
-        /*
-         * Corpo da lente.
-         */
         ctx.fillStyle =
           active
             ? '#d8dce0'
@@ -1427,37 +1092,16 @@
             ? '#ffffff'
             : '#68717c';
 
-        ctx.lineWidth =
-          Math.max(1, 1.2 * zoom);
-
+        ctx.lineWidth = Math.max(1, 1.2 * zoom);
         ctx.beginPath();
-
-        ctx.roundRect(
-          -s / 2,
-          -s / 2,
-          s,
-          s,
-          3 * zoom
-        );
-
+        ctx.roundRect( -s / 2, -s / 2, s, s, 3 * zoom);
         ctx.fill();
         ctx.stroke();
 
-        /*
-         * Área interna da lente.
-         */
-        const lensRadius =
-          Math.max(2, 5.2 * zoom);
+        const lensRadius = Math.max(2, 5.2 * zoom);
 
         ctx.beginPath();
-
-        ctx.arc(
-          0,
-          0,
-          lensRadius,
-          0,
-          Math.PI * 2
-        );
+        ctx.arc( 0, 0, lensRadius, 0, Math.PI * 2);
 
         ctx.fillStyle =
           active
@@ -1465,10 +1109,6 @@
             : '#272d35';
 
         ctx.fill();
-
-        /*
-         * Borda interna da lente.
-         */
         ctx.strokeStyle =
           active
             ? col
@@ -1478,20 +1118,8 @@
           Math.max(.7, .8 * zoom);
 
         ctx.stroke();
-
-        /*
-         * Reflexo da lente.
-         */
         ctx.beginPath();
-
-        ctx.arc(
-          -1.8 * zoom,
-          -1.8 * zoom,
-          Math.max(1, 1.5 * zoom),
-          0,
-          Math.PI * 2
-        );
-
+        ctx.arc( -1.8 * zoom, -1.8 * zoom, Math.max(1, 1.5 * zoom), 0, Math.PI * 2);
         ctx.fillStyle = '#ffffff';
 
         ctx.globalAlpha =
@@ -1503,75 +1131,30 @@
 
         ctx.globalAlpha = 1;
 
-        /*
-         * ============================================================
-         * INDICAÇÃO DE FLUXO DIN → DOUT NO COMPONENTE
-         * ============================================================
-         */
 
         if (zoom > 0.7) {
 
           ctx.fillStyle = '#73e6a1';
-
           ctx.beginPath();
-
-          ctx.moveTo(
-            -s / 2 - 7 * zoom,
-            0
-          );
-
-          ctx.lineTo(
-            -s / 2 - 2 * zoom,
-            0
-          );
-
-          ctx.lineTo(
-            -s / 2 - 4 * zoom,
-            -2 * zoom
-          );
-
-          ctx.moveTo(
-            -s / 2 - 2 * zoom,
-            0
-          );
-
-          ctx.lineTo(
-            -s / 2 - 4 * zoom,
-            2 * zoom
-          );
+          ctx.moveTo( -s / 2 - 7 * zoom, 0);
+          ctx.lineTo( -s / 2 - 2 * zoom, 0);
+          ctx.lineTo( -s / 2 - 4 * zoom, -2 * zoom);
+          ctx.moveTo( -s / 2 - 2 * zoom, 0);
+          ctx.lineTo( -s / 2 - 4 * zoom, 2 * zoom);
 
           ctx.strokeStyle = '#73e6a1';
           ctx.lineWidth = Math.max(1, 1.1 * zoom);
+
           ctx.stroke();
 
           ctx.fillStyle = '#ffd27b';
 
           ctx.beginPath();
-
-          ctx.moveTo(
-            s / 2 + 2 * zoom,
-            0
-          );
-
-          ctx.lineTo(
-            s / 2 + 7 * zoom,
-            0
-          );
-
-          ctx.lineTo(
-            s / 2 + 4 * zoom,
-            -2 * zoom
-          );
-
-          ctx.moveTo(
-            s / 2 + 7 * zoom,
-            0
-          );
-
-          ctx.lineTo(
-            s / 2 + 4 * zoom,
-            2 * zoom
-          );
+          ctx.moveTo( s / 2 + 2 * zoom, 0);
+          ctx.lineTo( s / 2 + 7 * zoom, 0);
+          ctx.lineTo( s / 2 + 4 * zoom, -2 * zoom);
+          ctx.moveTo( s / 2 + 7 * zoom, 0);
+          ctx.lineTo( s / 2 + 4 * zoom, 2 * zoom);
 
           ctx.strokeStyle = '#ffd27b';
           ctx.lineWidth = Math.max(1, 1.1 * zoom);
@@ -1580,12 +1163,6 @@
 
         ctx.restore();
 
-        /*
-         * ============================================================
-         * IDENTIFICAÇÃO DO PIXEL
-         * ============================================================
-         */
-
         if (zoom > 0.35) {
 
           ctx.fillStyle =
@@ -1593,9 +1170,7 @@
               ? '#ffffff'
               : '#aab4c7';
 
-          ctx.font =
-            `bold ${Math.max(8, 10 * zoom)}px ui-monospace`;
-
+          ctx.font = `bold ${Math.max(8, 10 * zoom)}px ui-monospace`;
           ctx.textAlign = 'center';
           ctx.textBaseline = 'middle';
 
@@ -1605,18 +1180,12 @@
             y - 24 * zoom
           );
 
-          /*
-           * Bytes RGB abaixo.
-           */
           const mem =
             l.mem ||
             [l.r, l.g, l.b];
 
-          ctx.font =
-            `${Math.max(7, 8.5 * zoom)}px ui-monospace`;
-
-          ctx.fillStyle =
-            '#7f8da7';
+          ctx.font = `${Math.max(7, 8.5 * zoom)}px ui-monospace`;
+          ctx.fillStyle = '#7f8da7';
 
           ctx.fillText(
             mem
@@ -1632,21 +1201,11 @@
           );
         }
 
-        /*
-         * ============================================================
-         * PIXEL SELECIONADO
-         * ============================================================
-         */
-
         if (i === selected) {
 
           ctx.save();
-
-          ctx.strokeStyle =
-            '#ffffff';
-
-          ctx.lineWidth =
-            Math.max(1.5, 2 * zoom);
+          ctx.strokeStyle = '#ffffff';
+          ctx.lineWidth = Math.max(1.5, 2 * zoom);
 
           ctx.setLineDash([
             5 * zoom,
@@ -1654,107 +1213,39 @@
           ]);
 
           ctx.beginPath();
-
-          ctx.arc(
-            x,
-            y,
-            21 * zoom,
-            0,
-            Math.PI * 2
-          );
-
+          ctx.arc( x, y, 21 * zoom, 0, Math.PI * 2);
           ctx.stroke();
-
           ctx.setLineDash([]);
 
-          /*
-           * Pequenos marcadores de seleção.
-           */
           const marker = 26 * zoom;
 
-          ctx.strokeStyle =
-            '#ffffff';
-
-          ctx.lineWidth =
-            Math.max(1, 1.5 * zoom);
+          ctx.strokeStyle = '#ffffff';
+          ctx.lineWidth = Math.max(1, 1.5 * zoom);
 
           ctx.beginPath();
-
-          ctx.moveTo(
-            x - marker,
-            y
-          );
-
-          ctx.lineTo(
-            x - marker + 6 * zoom,
-            y
-          );
-
-          ctx.moveTo(
-            x + marker,
-            y
-          );
-
-          ctx.lineTo(
-            x + marker - 6 * zoom,
-            y
-          );
-
-          ctx.moveTo(
-            x,
-            y - marker
-          );
-
-          ctx.lineTo(
-            x,
-            y - marker + 6 * zoom
-          );
-
-          ctx.moveTo(
-            x,
-            y + marker
-          );
-
-          ctx.lineTo(
-            x,
-            y + marker - 6 * zoom
-          );
-
+          ctx.moveTo( x - marker, y);
+          ctx.lineTo( x - marker + 6 * zoom, y);
+          ctx.moveTo( x + marker, y);
+          ctx.lineTo( x + marker - 6 * zoom, y);
+          ctx.moveTo( x, y - marker);
+          ctx.lineTo( x, y - marker + 6 * zoom);
+          ctx.moveTo( x, y + marker);
+          ctx.lineTo( x, y + marker - 6 * zoom);
           ctx.stroke();
-
           ctx.restore();
         }
       });
 
-      /*
-       * ================================================================
-       * DIN / DOUT EXTERNOS
-       * ================================================================
-       */
-
-      const first =
-        points[0];
-
-      const last =
-        points[points.length - 1];
-
-      /*
-       * Direção na entrada.
-       */
-      const firstNext =
-        points[Math.min(1, points.length - 1)];
-
+      const first = points[0];
+      const last = points[points.length - 1];
+      const firstNext = points[Math.min(1, points.length - 1)];
       const firstAngle =
         Math.atan2(
           firstNext[1] - first[1],
           firstNext[0] - first[0]
         );
 
-      /*
-       * Direção na saída.
-       */
-      const lastPrevious =
-        points[Math.max(0, points.length - 2)];
+      const lastPrevious = points[Math.max(0, points.length - 2)];
 
       const lastAngle =
         Math.atan2(
@@ -1762,177 +1253,70 @@
           last[0] - lastPrevious[0]
         );
 
-      /*
-       * ------------------------------------------------
-       * DIN
-       * ------------------------------------------------
-       */
-
       ctx.save();
-
-      ctx.translate(
-        first[0],
-        first[1]
-      );
-
+      ctx.translate( first[0], first[1]);
       ctx.rotate(firstAngle);
 
-      /*
-       * Cabo entrando na fita.
-       */
       ctx.strokeStyle = '#73e6a1';
       ctx.lineWidth = Math.max(2, 3 * zoom);
       ctx.lineCap = 'round';
 
       ctx.beginPath();
-
-      ctx.moveTo(
-        -55 * zoom,
-        0
-      );
-
-      ctx.lineTo(
-        -29 * zoom,
-        0
-      );
-
+      ctx.moveTo( -55 * zoom, 0);
+      ctx.lineTo( -29 * zoom, 0);
       ctx.stroke();
 
-      /*
-       * Seta.
-       */
       ctx.fillStyle = '#73e6a1';
 
       ctx.beginPath();
-
-      ctx.moveTo(
-        -29 * zoom,
-        0
-      );
-
-      ctx.lineTo(
-        -37 * zoom,
-        -4 * zoom
-      );
-
-      ctx.lineTo(
-        -37 * zoom,
-        4 * zoom
-      );
-
+      ctx.moveTo( -29 * zoom, 0);
+      ctx.lineTo( -37 * zoom, -4 * zoom);
+      ctx.lineTo( -37 * zoom, 4 * zoom);
       ctx.closePath();
-
       ctx.fill();
 
       ctx.fillStyle = '#73e6a1';
-
-      ctx.font =
-        `bold ${Math.max(9, 11 * zoom)}px system-ui`;
-
+      ctx.font = `bold ${Math.max(9, 11 * zoom)}px system-ui`;
       ctx.textAlign = 'right';
       ctx.textBaseline = 'bottom';
 
-      ctx.fillText(
-        'DIN',
-        -35 * zoom,
-        -7 * zoom
-      );
-
+      ctx.fillText('DIN',-35 * zoom,-7 * zoom);
       ctx.restore();
-
-      /*
-       * ------------------------------------------------
-       * DOUT
-       * ------------------------------------------------
-       */
-
       ctx.save();
-
-      ctx.translate(
-        last[0],
-        last[1]
-      );
-
+      ctx.translate(last[0],last[1]);
       ctx.rotate(lastAngle);
 
-      /*
-       * Cabo saindo da fita.
-       */
       ctx.strokeStyle = '#ffd27b';
       ctx.lineWidth = Math.max(2, 3 * zoom);
       ctx.lineCap = 'round';
 
       ctx.beginPath();
-
-      ctx.moveTo(
-        29 * zoom,
-        0
-      );
-
-      ctx.lineTo(
-        55 * zoom,
-        0
-      );
-
+      ctx.moveTo(29 * zoom,0);
+      ctx.lineTo(55 * zoom,0);
       ctx.stroke();
 
-      /*
-       * Seta.
-       */
       ctx.fillStyle = '#ffd27b';
 
       ctx.beginPath();
-
-      ctx.moveTo(
-        55 * zoom,
-        0
-      );
-
-      ctx.lineTo(
-        47 * zoom,
-        -4 * zoom
-      );
-
-      ctx.lineTo(
-        47 * zoom,
-        4 * zoom
-      );
-
+      ctx.moveTo(55 * zoom,0);
+      ctx.lineTo(47 * zoom,-4 * zoom);
+      ctx.lineTo(47 * zoom,4 * zoom);
       ctx.closePath();
-
       ctx.fill();
 
       ctx.fillStyle = '#ffd27b';
-
-      ctx.font =
-        `bold ${Math.max(9, 11 * zoom)}px system-ui`;
-
+      ctx.font = `bold ${Math.max(9, 11 * zoom)}px system-ui`;
       ctx.textAlign = 'left';
       ctx.textBaseline = 'bottom';
 
-      ctx.fillText(
-        'DOUT',
-        35 * zoom,
-        -7 * zoom
-      );
-
+      ctx.fillText('DOUT',35 * zoom,-7 * zoom);
       ctx.restore();
 
-      /*
-       * ================================================================
-       * LEGENDA DA FITA
-       * ================================================================
-       *
-       * Ajuda a transformar o desenho em uma ferramenta didática.
-       */
-
+      /*LEGENDA DA FITA*/
       if (zoom > 0.55) {
 
         ctx.save();
-
-        ctx.font =
-          `${Math.max(8, 9 * zoom)}px ui-monospace`;
-
+        ctx.font = `${Math.max(8, 9 * zoom)}px ui-monospace`;
         ctx.textAlign = 'left';
 
         const legendX = 20;
@@ -1971,20 +1355,16 @@
           legendX + 280,
           legendY
         );
-
         ctx.restore();
       }
-
       ctx.restore();
     }
 
     function selectAt(mx, my) {
       let best = -1, bd = 22;
-
       for (let i = 0; i < leds.length; i++) {
         let [x, y] = screen(leds[i]),
           d = Math.hypot(mx - x, my - y);
-
         if (d < bd) {
           bd = d;
           best = i
@@ -2202,9 +1582,7 @@
       $('latchG').textContent = 'G = ' + toHex(lr.g);
       $('latchB').textContent = 'B = ' + toHex(lr.b);
 
-      /*
-       * PWM
-       */
+      /*PWM*/
       const pr = lr.r / 255 * 100;
       const pg = lr.g / 255 * 100;
       const pb = lr.b / 255 * 100;
@@ -2225,9 +1603,7 @@
       $('pipelineValG').textContent = toHex(lr.g);
       $('pipelineValB').textContent = toHex(lr.b);
 
-      /*
-       * Saída RGB
-       */
+      /*Saída RGB*/
       const out = {
         r: lr.r,
         g: lr.g,
@@ -2244,9 +1620,6 @@
       $('pipelineRgbDot').style.boxShadow =
         `0 0 18px ${rgbHex(out)}`;
 
-      /*
-       * Mantém também o campo antigo selPwm atualizado.
-       */
       $('selPwm').textContent =
         pr.toFixed(1) + ' / ' +
         pg.toFixed(1) + ' / ' +
@@ -2313,9 +1686,6 @@
         ? $('powerInjection').value
         : 'start';
 
-      /*
-       * Corrente consumida por cada pixel.
-       */
       const currents = leds.map(pixel => {
         return 0.001 * (
           (+$('ic').value || 0) +
@@ -2325,16 +1695,7 @@
         );
       });
 
-      /*
-       * Resistência total do trecho entre LEDs.
-       *
-       * A resistência informada é Ω/m.
-       */
       const totalResistance = Rm * length;
-
-      /*
-       * Distância aproximada entre pixels.
-       */
       const segmentLength =
         n > 1
           ? length / (n - 1)
@@ -2345,9 +1706,6 @@
           ? (+$('segmentResistance').value || 0)
           : (Rm * segmentLength);
 
-      /*
-       * Pontos onde existe alimentação.
-       */
       let injectionIndexes = [];
 
       if (injectionMode === 'start') {
@@ -2375,20 +1733,11 @@
 
       const voltages = new Array(n).fill(0);
 
-      /*
-       * Alimentação em cada ponto divide a fita em trechos.
-       */
       if (injectionIndexes.length === 0) {
-
-        /*
-         * Sem alimentação
-         */
         voltages.fill(0);
 
       } else {
-
         for (let segment = 0; segment < injectionIndexes.length; segment++) {
-
           const sourceIndex = injectionIndexes[segment];
 
           const nextSource =
@@ -2396,9 +1745,6 @@
               ? injectionIndexes[segment + 1]
               : n - 1;
 
-          /*
-           * Lado esquerdo da fonte.
-           */
           if (segment > 0) {
 
             let voltage = Vsource;
@@ -2424,13 +1770,10 @@
             }
           }
 
-          /*
-           * Lado direito da fonte.
-           */
+
           let voltage = Vsource;
 
           for (let i = sourceIndex; i <= nextSource; i++) {
-
             if (i === sourceIndex) {
               voltages[i] = Math.max(voltages[i], Vsource);
               continue;
@@ -2446,10 +1789,6 @@
               downstreamCurrent * segmentResistance *
               (i - sourceIndex);
 
-            /*
-             * Se outro ponto de alimentação já calculou
-             * uma tensão maior, mantém a maior tensão local.
-             */
             voltages[i] =
               Math.max(
                 voltages[i] || 0,
@@ -2460,27 +1799,12 @@
       }
 
       const startVoltage = voltages[0] || 0;
-
-      const middleIndex =
-        Math.floor((n - 1) / 2);
-
-      const middleVoltage =
-        voltages[middleIndex] || 0;
-
-      const endVoltage =
-        voltages[n - 1] || 0;
-
-      const maxVoltage =
-        Math.max(...voltages);
-
-      const minVoltage =
-        Math.min(...voltages);
-
-      const maxDrop =
-        Math.max(
-          0,
-          maxVoltage - minVoltage
-        );
+      const middleIndex = Math.floor((n - 1) / 2);
+      const middleVoltage = voltages[middleIndex] || 0;
+      const endVoltage = voltages[n - 1] || 0;
+      const maxVoltage = Math.max(...voltages);
+      const minVoltage = Math.min(...voltages);
+      const maxDrop = Math.max( 0, maxVoltage - minVoltage);
 
       return {
         voltages,
@@ -2500,7 +1824,6 @@
       if (!container) return;
 
       const result = calculateElectricalPath();
-
       const {
         voltages,
         currents,
@@ -2509,17 +1832,11 @@
 
       container.innerHTML = '';
 
-      /*
-       * Trilho elétrico.
-       */
       const rail = document.createElement('div');
       rail.className = 'electricalRail';
 
       container.appendChild(rail);
 
-      /*
-       * Container dos pixels.
-       */
       const pixels = document.createElement('div');
       pixels.className = 'electricalPixels';
 
@@ -2527,13 +1844,9 @@
 
         const voltage = voltages[i] || 0;
         const current = currents[i] || 0;
-
         const pixel = document.createElement('div');
         pixel.className = 'electricalPixel';
 
-        /*
-         * Classificação visual.
-         */
         let voltageClass = 'normal';
 
         if (voltage < 4.0) {
@@ -2547,19 +1860,12 @@
           'electricalPixelNode ' +
           voltageClass;
 
-        /*
-         * Clique no LED elétrico também seleciona
-         * o LED no simulador principal.
-         */
         node.onclick = () => {
           selected = i;
           syncPanel();
           draw();
         };
 
-        /*
-         * Ponto de injeção.
-         */
         if (injections.includes(i)) {
 
           const injection = document.createElement('div');
@@ -2593,24 +1899,11 @@
 
       container.appendChild(pixels);
 
-      /*
-       * Atualiza os valores resumidos.
-       */
-      $('electricalStartVoltage').textContent =
-        result.startVoltage.toFixed(2) + ' V';
+      $('electricalStartVoltage').textContent = result.startVoltage.toFixed(2) + ' V';
+      $('electricalMiddleVoltage').textContent = result.middleVoltage.toFixed(2) + ' V';
+      $('electricalEndVoltage').textContent = result.endVoltage.toFixed(2) + ' V';
+      $('electricalMaxDrop').textContent = result.maxDrop.toFixed(2) + ' V';
 
-      $('electricalMiddleVoltage').textContent =
-        result.middleVoltage.toFixed(2) + ' V';
-
-      $('electricalEndVoltage').textContent =
-        result.endVoltage.toFixed(2) + ' V';
-
-      $('electricalMaxDrop').textContent =
-        result.maxDrop.toFixed(2) + ' V';
-
-      /*
-       * Fonte visual.
-       */
       const vs = +$('vs').value || 5;
       const imax = +$('imax').value || 10;
 
@@ -2622,9 +1915,6 @@
         vs.toFixed(1) + 'V ' +
         imax.toFixed(1) + 'A';
 
-      /*
-       * Texto do estado da alimentação.
-       */
       const mode = $('powerInjection')
         ? $('powerInjection').value
         : 'start';
@@ -2636,12 +1926,8 @@
         none: 'Sem alimentação'
       };
 
-      $('engInjectionStatus').textContent =
-        labels[mode] || 'Alimentação única';
+      $('engInjectionStatus').textContent = labels[mode] || 'Alimentação única';
 
-      /*
-       * Mostra/esconde ramificações do diagrama.
-       */
       const middle = $('middleInjectionBranch');
       const end = $('endInjectionBranch');
 
@@ -2662,46 +1948,28 @@
 
     function updateElectrical() {
       const result = calculateElectricalPath();
+      const totalCurrent = result.currents.reduce((sum, current) => sum + current, 0);
+      const voltage = +$('vs').value || 5;
+      const power = totalCurrent * voltage;
 
-      const totalCurrent =
-        result.currents.reduce((sum, current) => sum + current, 0);
-
-      const voltage =
-        +$('vs').value || 5;
-
-      const power =
-        totalCurrent * voltage;
-
-      $('totalI').textContent =
-        totalCurrent.toFixed(2) + ' A';
-
-      $('power').textContent =
-        power.toFixed(1) + ' W';
-
-      $('drop').textContent =
-        result.maxDrop.toFixed(2) + ' V';
-
-      $('vEnd').textContent =
-        result.endVoltage.toFixed(2) + ' V';
+      $('totalI').textContent = totalCurrent.toFixed(2) + ' A';
+      $('power').textContent = power.toFixed(1) + ' W';
+      $('drop').textContent = result.maxDrop.toFixed(2) + ' V';
+      $('vEnd').textContent = result.endVoltage.toFixed(2) + ' V';
 
       const lim = +$('imax').value;
 
       let msg;
 
       if (totalCurrent > lim) {
-        msg =
-          `<span class="bad">Corrente acima do limite da fonte (${lim.toFixed(1)} A).</span>`;
+        msg = `<span class="bad">Corrente acima do limite da fonte (${lim.toFixed(1)} A).</span>`;
       } else if (result.maxDrop > 0.7) {
-        msg =
-          `<span class="warn">Queda de tensão significativa; considere injeção de alimentação.</span>`;
+        msg = `<span class="warn">Queda de tensão significativa; considere injeção de alimentação.</span>`;
       } else {
-        msg =
-          `<span class="good">Corrente dentro do limite configurado.</span>`;
+        msg = `<span class="good">Corrente dentro do limite configurado.</span>`;
       }
 
-      $('elecMsg').innerHTML =
-        msg +
-        ' Modelo baseado na resistência da linha.';
+      $('elecMsg').innerHTML = msg + ' Modelo baseado na resistência da linha.';
     }
 
     function updateFlow() {
@@ -2739,7 +2007,6 @@
     }
 
     /* MODO ENGENHARIA */
-
     function resizeScope() {
       if (!scopeCanvas) return;
 
@@ -2767,9 +2034,6 @@
       scopeCtx.fillStyle = '#050914';
       scopeCtx.fillRect(0, 0, w, h);
 
-      /*
-       * Grade do osciloscópio
-       */
       scopeCtx.strokeStyle = '#162139';
       scopeCtx.lineWidth = 1;
 
@@ -2790,9 +2054,6 @@
         scopeCtx.stroke();
       }
 
-      /*
-       * Linha central / referência de tensão
-       */
       const highY = h * .27;
       const lowY = h * .73;
 
@@ -2811,36 +2072,21 @@
 
       scopeCtx.setLineDash([]);
 
-      /*
-       * Valores do LED selecionado
-       */
       const l = leds[selected];
 
       if (!l) return;
 
       const data = bits3(l.shift || bytesOf(l));
-
-      /*
-       * Cada bit recebe uma célula horizontal.
-       */
       const left = 20;
       const right = 12;
       const available = w - left - right;
-
       const bitWidth = available / Math.max(1, data.length);
-
-      /*
-       * Mantemos algumas células mesmo em telas pequenas.
-       */
       const step = Math.max(7, bitWidth);
 
       let x = left;
 
       scopeCtx.beginPath();
 
-      /*
-       * Primeiro nível.
-       */
       let first = data[0] === '1';
 
       scopeCtx.moveTo(x, first ? highY : lowY);
@@ -2848,15 +2094,10 @@
       for (let i = 0; i < data.length; i++) {
 
         const bit = data[i] === '1';
-
         const x1 = left + i * step;
         const x2 = x1 + step;
-
         const y = bit ? highY : lowY;
 
-        /*
-         * Transição vertical do bit anterior para o atual.
-         */
         if (i > 0) {
           const previous = data[i - 1] === '1';
           const previousY = previous ? highY : lowY;
@@ -2876,9 +2117,7 @@
       scopeCtx.lineWidth = 2;
       scopeCtx.stroke();
 
-      /*
-       * Marcações dos bytes.
-       */
+      /*Marcações dos bytes.*/
       for (let i = 0; i <= 24; i += 8) {
 
         const xByte = left + i * step;
@@ -2904,18 +2143,14 @@
         }
       }
 
-      /*
-       * Labels de tensão.
-       */
+      /* Labels de tensão.*/
       scopeCtx.fillStyle = '#8290ae';
       scopeCtx.font = '9px ui-monospace';
 
       scopeCtx.fillText('5V', 4, highY - 4);
       scopeCtx.fillText('0V', 4, lowY + 11);
 
-      /*
-       * Estado lógico dos bits.
-       */
+      /* Estado lógico dos bits.*/
       scopeCtx.fillStyle = '#dce6ff';
       scopeCtx.font = '10px ui-monospace';
 
@@ -2935,39 +2170,28 @@
     }
 
     function updateEngineering() {
-
       if (!engineeringMode) return;
-
       const l = leds[selected];
-
       if (!l) return;
-
-      const ordered = l.latch && l.latch.length
-        ? l.latch
-        : bytesOf(l);
+      const ordered =
+        l.latch && l.latch.length
+          ? l.latch
+          : bytesOf(l);
 
       const rgb = getRgbFromOrderedBytes(ordered);
-
       const pr = rgb.r / 255 * 100;
       const pg = rgb.g / 255 * 100;
       const pb = rgb.b / 255 * 100;
 
-      /*
-       * Identificação
-       */
+      /*IDENTIFICAÇÃO*/
       $('scopeLed').textContent = 'LED #' + (selected + 1);
       $('engShiftLed').textContent = 'LED #' + (selected + 1);
+      $('bitStepLed').textContent = 'LED #' + (selected + 1);
+      $('bitCurrentLed').textContent = 'LED #' + (selected + 1);
       $('engAddress').textContent = '#' + (selected + 1);
+      $('engRgb').textContent = [ toHex(rgb.r), toHex(rgb.g), toHex(rgb.b)].join(' ');
 
-      $('engRgb').textContent = [
-        toHex(rgb.r),
-        toHex(rgb.g),
-        toHex(rgb.b)
-      ].join(' ');
-
-      /*
-       * Shift Register
-       */
+      /*SHIFT REGISTER*/
       const shiftBits = bits3(l.shift || ordered);
 
       $('engShiftBits').textContent =
@@ -2975,7 +2199,8 @@
         shiftBits.slice(8, 16) + ' ' +
         shiftBits.slice(16, 24);
 
-      $('engBitCount').textContent = shiftBits.length;
+      $('engBitCount').textContent =
+        shiftBits.length;
 
       const baud = +$('baud').value || 800000;
 
@@ -2984,86 +2209,53 @@
           ? (baud / 1000000).toFixed(2) + ' Mbit/s'
           : Math.round(baud / 1000) + ' kbit/s';
 
-      /*
-       * Latch
-       */
+      /*LATCH*/
       $('engLatchR').textContent = toHex(rgb.r);
       $('engLatchG').textContent = toHex(rgb.g);
       $('engLatchB').textContent = toHex(rgb.b);
       $('engOrder').textContent = $('order').value;
 
-      /*
-       * PWM
-       */
-      $('engPwmR').style.width = pr + '%';
-      $('engPwmG').style.width = pg + '%';
-      $('engPwmB').style.width = pb + '%';
-
-      $('engPwmRText').textContent =
-        pr.toFixed(1).replace('.', ',') + '%';
-
-      $('engPwmGText').textContent =
-        pg.toFixed(1).replace('.', ',') + '%';
-
-      $('engPwmBText').textContent =
-        pb.toFixed(1).replace('.', ',') + '%';
-
-      /*
-       * Eletrônica
-       */
+      /*ELETRÔNICA */
       let sum = 0;
-
       for (const pixel of leds) {
-
         sum += 0.001 * (
-          +$('ic').value +
-          (+$('ir').value * pixel.r / 255) +
-          (+$('ig').value * pixel.g / 255) +
-          (+$('ib').value * pixel.b / 255)
+          (+$('ic').value || 0) +
+          ((+$('ir').value || 0) * pixel.r / 255) +
+          ((+$('ig').value || 0) * pixel.g / 255) +
+          ((+$('ib').value || 0) * pixel.b / 255)
         );
       }
 
-      const V = +$('vs').value;
-      const L = +$('length').value;
-      const Rm = +$('rper').value;
-
+      const V = +$('vs').value || 5;
+      const L = +$('length').value || 0;
+      const Rm = +$('rper').value || 0;
       const drop = sum * (Rm * L / 2);
       const power = sum * V;
 
-      $('engVoltage').textContent =
-        V.toFixed(2) + ' V';
-
-      $('engCurrent').textContent =
-        sum.toFixed(2) + ' A';
-
-      $('engPower').textContent =
-        power.toFixed(2) + ' W';
-
+      $('engVoltage').textContent = V.toFixed(2) + ' V';
+      $('engCurrent').textContent = sum.toFixed(2) + ' A';
+      $('engPower').textContent = power.toFixed(2) + ' W';
       $('engDrop').textContent =
         drop.toFixed(2) + ' V';
 
-      const lim = +$('imax').value;
+      const lim = +$('imax').value || 0;
 
       if (sum > lim) {
         $('engElectricalStatus').innerHTML =
-          '<span class="bad">⚠ Corrente acima do limite da fonte.</span>';
+          '<span class="bad">Corrente acima do limite da fonte.</span>';
+
       } else if (drop > 0.7) {
         $('engElectricalStatus').innerHTML =
-          '<span class="warn">⚠ Queda de tensão significativa.</span>';
+          '<span class="warn">Queda de tensão significativa.</span>';
+
       } else {
         $('engElectricalStatus').innerHTML =
-          '<span class="good">✓ Corrente dentro do limite configurado.</span>';
+          '<span class="good">Corrente dentro do limite configurado.</span>';
       }
 
-      /*
-       * Redesenha o osciloscópio.
-       */
       drawOscilloscope();
     }
 
-    /*
-    * Converte a entrada atual em bytes.
-    */
     function getTransmissionBytes() {
       const raw = $('bytes').value.trim();
 
@@ -3078,35 +2270,24 @@
 
       for (const token of tokens) {
         const value = token.replace(/^0x/i, '');
-
         if (!/^[0-9a-fA-F]{1,2}$/.test(value)) {
           throw new Error(`Byte inválido: ${token}`);
         }
-
         bytes.push(parseInt(value, 16));
       }
-
       return bytes;
     }
 
-    /*
-     * Converte todos os bytes em um fluxo único de bits.
-     */
+    /*Converte todos os bytes em um fluxo único de bits.*/
     function bytesToBitStream(bytes) {
-
       const bits = [];
-
       bytes.forEach(byte => {
-
         const binaryValue =
           byte.toString(2).padStart(8, '0');
-
         for (const bit of binaryValue) {
           bits.push(bit);
         }
-
       });
-
       return bits;
     }
 
@@ -3137,7 +2318,6 @@
       );
     }
 
-
     /* Converte um grupo de 8 bits para hexadecimal. */
     function bitsToHex(bits) {
 
@@ -3154,22 +2334,13 @@
         .toUpperCase();
     }
 
-
-    /*
-     * Atualiza visualmente todo o modo passo a passo.
-     */
     function updateBitDecomposition() {
-
       const d = bitDecomposition;
 
       if (!$('bitInputFlow')) return;
 
       const bytes = d.bytes || [];
       const bits = d.bits || [];
-
-      /*
-       * Entrada original.
-       */
       const input = $('bitInputFlow');
 
       input.innerHTML = '';
@@ -3206,43 +2377,23 @@
 
           byteContainer.appendChild(span);
         }
-
         input.appendChild(byteContainer);
       });
 
 
-      /*
-       * Contadores.
-       */
-      $('bitInputConsumed').textContent =
-        d.cursor + ' bits consumidos';
+      /*Contadores.*/
+      $('bitInputConsumed').textContent = d.cursor + ' bits consumidos';
 
-      const remainingBits =
-        Math.max(0, bits.length - d.cursor);
+      const remainingBits = Math.max(0, bits.length - d.cursor);
 
-      $('bitInputRemaining').textContent =
-        Math.ceil(remainingBits / 8) +
-        ' bytes restantes';
+      $('bitInputRemaining').textContent = Math.ceil(remainingBits / 8) + ' bytes restantes';
 
+      const currentLed = d.led + 1;
 
-      /*
-       * LED atual.
-       */
-      const currentLed =
-        d.led + 1;
+      $('bitStepLed').textContent = 'LED #' + currentLed;
+      $('bitCurrentLed').textContent = 'LED #' + currentLed;
 
-      $('bitStepLed').textContent =
-        'LED #' + currentLed;
-
-      $('bitCurrentLed').textContent =
-        'LED #' + currentLed;
-
-
-      /*
-       * Bits já recebidos pelo LED.
-       */
       const ledStart = d.led * 24;
-
       const ledBits =
         bits.slice(
           ledStart,
@@ -3254,10 +2405,6 @@
 
       d.ledBits = ledBits;
 
-
-      /*
-       * Byte que contém o bit atual.
-       */
       const currentBit =
         bits[d.cursor];
 
@@ -3281,9 +2428,7 @@
           '--';
       }
 
-      /*
-       * Posição do bit dentro dos 24 bits do LED.
-       */
+      /*Posição do bit dentro dos 24 bits do LED.*/
       const positionInsideLed =
         Math.min(
           24,
@@ -3298,11 +2443,7 @@
           ? 24
           : positionInsideLed;
 
-      /*
-       * Visualização binária do byte atual.
-       */
-      const binaryBox =
-        $('bitBinaryValue');
+      const binaryBox = $('bitBinaryValue');
 
       binaryBox.innerHTML = '';
 
@@ -3320,12 +2461,9 @@
           d.cursor % 8;
 
         for (let i = 0; i < 8; i++) {
+          const span = document.createElement('span');
 
-          const span =
-            document.createElement('span');
-
-          span.textContent =
-            byteBits[i];
+          span.textContent = byteBits[i];
 
           if (i < bitInsideByte) {
             span.className = 'done';
@@ -3334,70 +2472,41 @@
           if (i === bitInsideByte) {
             span.className = 'current';
           }
-
           binaryBox.appendChild(span);
         }
 
       } else {
-
         for (let i = 0; i < 8; i++) {
-
-          const span =
-            document.createElement('span');
-
+          const span = document.createElement('span');
           span.textContent = '0';
           span.className = 'done';
-
           binaryBox.appendChild(span);
         }
       }
 
-      /*
-       * Shift Register do LED atual.
-       */
-      const shift =
-        $('bitShiftRegister');
+      const shift = $('bitShiftRegister');
 
       shift.innerHTML = '';
 
       for (let byteIndex = 0; byteIndex < 3; byteIndex++) {
-
         const byteBits =
           ledBits.slice(
             byteIndex * 8,
             byteIndex * 8 + 8
           );
 
-        const span =
-          document.createElement('span');
+        const span = document.createElement('span');
 
         if (byteBits.length === 0) {
-
-          span.textContent =
-            '00000000';
-
-          span.className =
-            'empty';
-
+          span.textContent = '00000000';
+          span.className = 'empty';
         } else {
-
-          span.textContent =
-            byteBits.join('') +
-            '0'.repeat(
-              8 - byteBits.length
-            );
-
+          span.textContent = byteBits.join('') +'0'.repeat(  8 - byteBits.length);
         }
-
         shift.appendChild(span);
       }
 
-      /*
-       * Restante que será retransmitido pelo DOUT.
-       */
-      const remaining =
-        bits.slice(d.cursor);
-
+      const remaining = bits.slice(d.cursor);
       const remainingBytes = [];
 
       for (
@@ -3406,8 +2515,7 @@
         i += 8
       ) {
 
-        const group =
-          remaining.slice(i, i + 8);
+        const group = remaining.slice(i, i + 8);
 
         if (group.length === 8) {
           remainingBytes.push(
@@ -3421,14 +2529,11 @@
           ? remainingBytes.join(' ')
           : '--';
 
-
       $('bitRemainingCount').textContent =
         remainingBytes.length +
         ' bytes restantes';
 
-      /*
-       * Progresso dos 24 bits do LED.
-       */
+      /*Progresso dos 24 bits do LED.*/
       const ledProgress =
         Math.min(
           24,
@@ -3438,113 +2543,61 @@
           )
         );
 
-      $('bitProgressText').textContent =
-        ledProgress + ' / 24 bits';
-
-      $('bitProgressFill').style.width =
-        (ledProgress / 24 * 100) + '%';
-
-      /*
-       * Estado textual.
-       */
-      const status =
-        $('bitStoreStatus');
+      $('bitProgressText').textContent = ledProgress + ' / 24 bits';
+      $('bitProgressFill').style.width = (ledProgress / 24 * 100) + '%';
+      
+      const status = $('bitStoreStatus');
 
       if (d.complete) {
-
-        status.textContent =
-          '✓ Transmissão concluída. Todos os bits foram consumidos.';
-
+        status.textContent = '✓ Transmissão concluída. Todos os bits foram consumidos.';
         status.classList.add('stored');
 
-        $('bitExplanation').textContent =
-          'O último LED recebeu seus 24 bits e não existe mais dados no DOUT.';
+        $('bitExplanation').textContent = 'O último LED recebeu seus 24 bits e não existe mais dados no DOUT.';
 
       } else if (ledProgress === 24) {
-
-        status.textContent =
-          '✓ 24 bits recebidos → ARMAZENA → próximo bit segue pelo DOUT.';
-
+        status.textContent = '✓ 24 bits recebidos → ARMAZENA → próximo bit segue pelo DOUT.';
         status.classList.add('stored');
 
-        $('bitExplanation').textContent =
-          'O LED completou seus 24 bits. O próximo bit será encaminhado ao próximo LED.';
+        $('bitExplanation').textContent = 'O LED completou seus 24 bits. O próximo bit será encaminhado ao próximo LED.';
 
       } else if (d.cursor > ledStart) {
-
-        status.textContent =
-          'Shift Register recebendo bits...';
-
+        status.textContent = 'Shift Register recebendo bits...';
         status.classList.remove('stored');
 
-        $('bitExplanation').textContent =
-          'O CI está acumulando os bits no Shift Register. Ainda não completou os 24 bits.';
-
+        $('bitExplanation').textContent = 'O CI está acumulando os bits no Shift Register. Ainda não completou os 24 bits.';
       } else {
-
-        status.textContent =
-          'Aguardando bits...';
-
+        status.textContent = 'Aguardando bits...';
         status.classList.remove('stored');
 
-        $('bitExplanation').textContent =
-          'Pressione "Próximo bit" para acompanhar o fluxo bit a bit.';
+        $('bitExplanation').textContent ='Pressione "Próximo bit" para acompanhar o fluxo bit a bit.';
       }
     }
 
-    /*
-     * Consome exatamente UM bit.
-     */
     function nextBit() {
-
       const d = bitDecomposition;
 
       if (!d.bits.length) {
-
         resetBitDecomposition();
-
         if (!d.bits.length) return;
       }
 
       if (d.complete) return;
 
-
-      /*
-       * Consome o bit atual.
-       */
       d.started = true;
-
       d.cursor++;
-
-      const nextLed =
-        Math.floor(d.cursor / 24);
-
-      const oldLed =
-        d.led;
 
       if (
         d.cursor % 24 === 0 &&
         d.cursor < d.bits.length
       ) {
 
-        d.led = nextLed;
+        d.led = Math.floor(d.cursor / 24);
 
-        /*
-         * Se existe um LED real correspondente,
-         * atualiza a visualização dele.
-         */
         if (leds[d.led]) {
           selected = d.led;
         }
-
-        syncPanel();
-        draw();
       }
 
-
-      /*
-       * Fim da transmissão.
-       */
       if (d.cursor >= d.bits.length) {
 
         d.cursor = d.bits.length;
@@ -3561,14 +2614,21 @@
             Math.max(0, leds.length - 1)
           );
 
+        if (leds[d.led]) {
+          selected = d.led;
+        }
       }
 
       updateBitDecomposition();
+      syncPanel();
+      updateElectrical();
+      updateFlow();
+      renderElectricalPath();
+      draw();
     }
 
     /* FRAME SYSTEM */
     function captureCurrentFrame() {
-
       return leds.map(l => ({
         r: l.r,
         g: l.g,
@@ -3577,18 +2637,22 @@
 
     }
 
-    /*
-     * Aplica um frame à fita.
-     */
     function applyFrame(index) {
-      if (index < 0 || index >= frames.length) {
+      if (
+        index < 0 ||
+        index >= frames.length
+      ) {
         return;
       }
 
       const frame = frames[index];
-
       for (let i = 0; i < leds.length; i++) {
-        const color = frame[i] || { r: 0, g: 0, b: 0 };
+        const color =
+          frame[i] || {
+            r: 0,
+            g: 0,
+            b: 0
+          };
 
         leds[i].r = color.r;
         leds[i].g = color.g;
@@ -3596,59 +2660,42 @@
 
         const ordered = bytesOf(leds[i]);
 
-        leds[i].mem = [leds[i].r, leds[i].g, leds[i].b];
+        leds[i].mem = [
+          leds[i].r,
+          leds[i].g,
+          leds[i].b
+        ];
+
         leds[i].received = ordered.slice();
+
         leds[i].shift = ordered.slice();
+
         leds[i].latch = ordered.slice();
       }
 
       currentFrame = index;
-
+      updateFrameUI();
       updateAll();
-      updateFrameUI();
-
-      // Força o redesenho gráfico a cada quadro da animação
-      requestAnimationFrame(draw);
     }
 
-    /*
-     * Adiciona o estado atual como novo frame.
-     */
     function addFrame() {
-
       const frame = captureCurrentFrame();
-
       frames.push(frame);
-
       currentFrame = frames.length - 1;
-
       updateFrameUI();
 
     }
 
-
-    /*
-     * Substitui o frame atual pelo estado atual da fita.
-     */
     function updateCurrentFrame() {
-
       if (currentFrame < 0) {
         addFrame();
         return;
       }
-
       frames[currentFrame] = captureCurrentFrame();
-
       updateFrameUI();
-
     }
 
-
-    /*
-     * Remove o frame atual.
-     */
     function deleteCurrentFrame() {
-
       if (
         currentFrame < 0 ||
         currentFrame >= frames.length
@@ -3671,65 +2718,42 @@
 
         applyFrame(currentFrame);
       }
-
       updateFrameUI();
     }
 
-
-    /*
-     * Vai para o frame anterior.
-     */
     function previousFrame() {
-
       if (!frames.length) return;
-
       const next =
         currentFrame <= 0
           ? frames.length - 1
           : currentFrame - 1;
-
       applyFrame(next);
     }
 
-
-    /*
-     * Vai para o próximo frame.
-     */
     function nextFrame() {
-
       if (!frames.length) return;
-
       const next =
         currentFrame >= frames.length - 1
           ? 0
           : currentFrame + 1;
-
       applyFrame(next);
     }
 
 
     function stopFrames() {
-
       framePlaying = false;
-
       if (frameTimer) {
         clearTimeout(frameTimer);
         frameTimer = null;
       }
 
       const button = $('playFrames');
-
       if (button) {
         button.textContent = '▶ Reproduzir';
       }
     }
 
-
-    /*
-     * Reprodução automática dos frames.
-     */
     function playFrames() {
-
       if (frames.length < 2) {
         return;
       }
@@ -3743,9 +2767,6 @@
 
       $('playFrames').textContent = '⏸ Parar';
 
-      /*
-       * Começa pelo frame atualmente selecionado.
-       */
       playingFrame =
         currentFrame >= 0
           ? currentFrame
@@ -3754,10 +2775,6 @@
       runFrameAnimation();
     }
 
-
-    /*
-     * Loop da animação.
-     */
     function runFrameAnimation() {
 
       if (!framePlaying || frames.length < 2) {
@@ -3765,14 +2782,8 @@
         return;
       }
 
-      /*
-       * Aplica o frame diretamente na fita.
-       */
       applyFrame(playingFrame);
 
-      /*
-       * Próximo frame.
-       */
       playingFrame++;
 
       if (playingFrame >= frames.length) {
@@ -3791,9 +2802,6 @@
       );
     }
 
-    /*
-     * Cria uma pequena prévia visual do frame.
-     */
     function getFramePreview(frame) {
 
       if (!frame || !frame.length) {
@@ -3804,9 +2812,6 @@
       let g = 0;
       let b = 0;
 
-      /*
-       * Média das cores do frame.
-       */
       for (const led of frame) {
         r += led.r;
         g += led.g;
@@ -3820,12 +2825,7 @@
       return `rgb(${r},${g},${b})`;
     }
 
-
-    /*
-     * Atualiza a lista visual de frames.
-     */
     function updateFrameUI() {
-
       const counter = $('frameCounter');
       const list = $('frameList');
 
@@ -3840,8 +2840,7 @@
 
       frames.forEach((frame, index) => {
 
-        const item =
-          document.createElement('div');
+        const item = document.createElement('div');
 
         item.className =
           'frameItem' +
@@ -3849,28 +2848,21 @@
             ? ' active'
             : '');
 
-        const preview =
-          document.createElement('div');
+        const preview = document.createElement('div');
 
-        preview.className =
-          'frameItemPreview';
+        preview.className = 'frameItemPreview';
 
-        preview.style.background =
-          getFramePreview(frame);
+        preview.style.background = getFramePreview(frame);
 
-        const label =
-          document.createElement('span');
+        const label = document.createElement('span');
 
-        label.textContent =
-          '#' + (index + 1);
+        label.textContent = '#' + (index + 1);
 
         item.appendChild(preview);
         item.appendChild(label);
-
         item.onclick = () => {
           applyFrame(index);
         };
-
         list.appendChild(item);
       });
     }
@@ -3890,55 +2882,38 @@
     $('nextBit').onclick = nextBit;
     $('addFrame').onclick = () => {
 
-      /*
-       * Para evitar alterar um frame enquanto
-       * ele está sendo reproduzido.
-       */
       stopFrames();
-
       addFrame();
     };
 
-
     $('updateFrame').onclick = () => {
-
       stopFrames();
-
       updateCurrentFrame();
     };
 
-
     $('deleteFrame').onclick = () => {
-
       stopFrames();
-
       deleteCurrentFrame();
     };
 
-
     $('prevFrame').onclick = () => {
-
       stopFrames();
-
       previousFrame();
     };
 
-
     $('nextFrame').onclick = () => {
-
       stopFrames();
-
       nextFrame();
     };
 
-
     $('playFrames').onclick = () => {
-
       playFrames();
     };
+
     $('resetBits').onclick = () => {
       resetBitDecomposition();
     };
+
     $('engineeringToggle').onclick = () => {
 
       engineeringMode = !engineeringMode;
@@ -4014,20 +2989,11 @@
 
     function animate() {
       if (!anim) return;
-
       selected = animStep % leds.length;
       animStep++;
-
       syncPanel();
       draw();
-
-      if (engineeringMode) {
-        updateEngineering();
-      }
-
-      setTimeout(() => {
-        if (anim) requestAnimationFrame(animate);
-      }, 260);
+      setTimeout(animate, 260)
     }
 
     ['vs', 'imax', 'rper', 'length', 'ir', 'ig', 'ib', 'ic', 'order']
@@ -4036,11 +3002,8 @@
       });
 
     $('powerInjection').addEventListener('change', updateAll);
-
     $('segmentResistance').addEventListener('input', updateAll);
-
     $('count').addEventListener('change', rebuild);
-
     $('spacing').addEventListener('input', () => {
       layoutLeds();
       draw()
@@ -4056,10 +3019,10 @@
       centerView();
       draw()
     });
+
     rebuild();
     resetBitDecomposition();
     resize();
   </script>
 </body>
-
 </html>
