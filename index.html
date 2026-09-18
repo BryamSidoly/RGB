@@ -32,8 +32,41 @@
         <h2>Transmissão</h2>
         <label>Bytes RGB (hex, separados por espaço)</label>
         <textarea id="bytes" rows="5" class="mono">FF 00 00 00 FF 00 00 00 FF 20 10 40</textarea>
-        <div class="row" style="margin-top:8px"><button id="send">Transmitir</button><button id="clear">Limpar
-            memória</button></div>
+        <div class="row" style="margin-top:8px">
+          <button id="send">Transmitir</button>
+          <button id="clear">Limpar memória</button>
+        </div>
+        <div class="frameEditor">
+
+          <div class="frameHeader">
+            <h3>Sequência de frames</h3>
+            <span id="frameCounter">Frame 0 / 0</span>
+          </div>
+
+          <div class="row">
+            <button id="addFrame">＋ Adicionar frame</button>
+            <button id="updateFrame">Atualizar frame</button>
+            <button id="deleteFrame">Excluir frame</button>
+          </div>
+
+          <div class="row" style="margin-top:6px">
+            <button id="prevFrame">◀ Anterior</button>
+            <button id="nextFrame">Próximo ▶</button>
+            <button id="playFrames">▶ Reproduzir</button>
+          </div>
+
+          <label>Intervalo entre frames (ms)</label>
+          <input id="frameInterval" type="number" min="20" step="10" value="200">
+
+          <div id="frameList" class="frameList"></div>
+
+          <div class="small">
+            Cada frame armazena o estado completo da fita.
+            Edite os LEDs normalmente e use "Adicionar frame" para criar
+            uma nova posição na animação.
+          </div>
+
+        </div>
         <label>Velocidade do protocolo</label><input id="baud" type="number" value="800000" min="100000" step="10000">
         <div class="small">WS2812B típico: 800 kbit/s. Cada pixel recebe 24 bits (3 bytes). A ordem de bytes é
           configurável abaixo.</div>
@@ -641,6 +674,11 @@
     };
 
     let leds = [], selected = 0, zoom = 1, panX = 0, panY = 0, dragging = false, lastX = 0, lastY = 0, anim = false, animStep = 0;
+    let frames = [];
+    let currentFrame = -1;
+    let framePlaying = false;
+    let frameTimer = null;
+    let playingFrame = 0;
 
     const $ = id => document.getElementById(id);
 
@@ -676,12 +714,71 @@
     }
 
     function rebuild() {
-      const n = Math.max(1, Math.min(300, +$('count').value || 30));
-      leds = Array.from({ length: n }, (_, i) => makeLed(i));
-      selected = Math.min(selected, n - 1);
+
+      stopFrames();
+
+      const n =
+        Math.max(
+          1,
+          Math.min(
+            300,
+            +$('count').value || 30
+          )
+        );
+
+      leds =
+        Array.from(
+          { length: n },
+          (_, i) => makeLed(i)
+        );
+
+      selected =
+        Math.min(
+          selected,
+          n - 1
+        );
+
+      /*
+       * Ajusta todos os frames à nova quantidade
+       * de LEDs.
+       */
+      frames = frames.map(frame => {
+
+        return Array.from(
+          { length: n },
+          (_, i) => frame[i]
+            ? {
+              r: frame[i].r,
+              g: frame[i].g,
+              b: frame[i].b
+            }
+            : {
+              r: 0,
+              g: 0,
+              b: 0
+            }
+        );
+
+      });
+
+      if (currentFrame >= frames.length) {
+        currentFrame =
+          frames.length - 1;
+      }
+
       layoutLeds();
       centerView();
-      updateAll();
+
+      /*
+       * Se existir um frame, restaura ele.
+       */
+      if (currentFrame >= 0) {
+        applyFrame(currentFrame);
+      } else {
+        updateAll();
+      }
+
+      updateFrameUI();
     }
 
     function layoutLeds() {
@@ -1879,7 +1976,7 @@
 
       ctx.restore();
     }
-    
+
     function selectAt(mx, my) {
       let best = -1, bd = 22;
 
@@ -2030,7 +2127,12 @@
       l.received = a.slice();
 
       updateAll();
-      draw()
+      draw();
+
+      if (currentFrame >= 0) {
+        frames[currentFrame] = captureCurrentFrame();
+        updateFrameUI();
+      }
     }
 
     function syncPanel() {
@@ -3463,6 +3565,331 @@
       updateBitDecomposition();
     }
 
+    /* FRAME SYSTEM */
+    function captureCurrentFrame() {
+
+      return leds.map(l => ({
+        r: l.r,
+        g: l.g,
+        b: l.b
+      }));
+
+    }
+
+    /*
+     * Aplica um frame à fita.
+     */
+    function applyFrame(index) {
+
+      if (
+        index < 0 ||
+        index >= frames.length
+      ) {
+        return;
+      }
+
+      const frame = frames[index];
+
+      /*
+       * Se a quantidade de LEDs mudou,
+       * ajusta o frame para a quantidade atual.
+       */
+      for (let i = 0; i < leds.length; i++) {
+
+        const color = frame[i] || {
+          r: 0,
+          g: 0,
+          b: 0
+        };
+
+        leds[i].r = color.r;
+        leds[i].g = color.g;
+        leds[i].b = color.b;
+
+        const ordered = bytesOf(leds[i]);
+
+        leds[i].mem = [
+          leds[i].r,
+          leds[i].g,
+          leds[i].b
+        ];
+
+        leds[i].received = ordered.slice();
+        leds[i].shift = ordered.slice();
+        leds[i].latch = ordered.slice();
+      }
+
+      currentFrame = index;
+
+      updateAll();
+      updateFrameUI();
+    }
+
+
+    /*
+     * Adiciona o estado atual como novo frame.
+     */
+    function addFrame() {
+
+      const frame = captureCurrentFrame();
+
+      frames.push(frame);
+
+      currentFrame = frames.length - 1;
+
+      updateFrameUI();
+
+    }
+
+
+    /*
+     * Substitui o frame atual pelo estado atual da fita.
+     */
+    function updateCurrentFrame() {
+
+      if (currentFrame < 0) {
+        addFrame();
+        return;
+      }
+
+      frames[currentFrame] = captureCurrentFrame();
+
+      updateFrameUI();
+
+    }
+
+
+    /*
+     * Remove o frame atual.
+     */
+    function deleteCurrentFrame() {
+
+      if (
+        currentFrame < 0 ||
+        currentFrame >= frames.length
+      ) {
+        return;
+      }
+
+      frames.splice(currentFrame, 1);
+
+      if (frames.length === 0) {
+        currentFrame = -1;
+        stopFrames();
+      } else {
+
+        currentFrame =
+          Math.min(
+            currentFrame,
+            frames.length - 1
+          );
+
+        applyFrame(currentFrame);
+      }
+
+      updateFrameUI();
+    }
+
+
+    /*
+     * Vai para o frame anterior.
+     */
+    function previousFrame() {
+
+      if (!frames.length) return;
+
+      const next =
+        currentFrame <= 0
+          ? frames.length - 1
+          : currentFrame - 1;
+
+      applyFrame(next);
+    }
+
+
+    /*
+     * Vai para o próximo frame.
+     */
+    function nextFrame() {
+
+      if (!frames.length) return;
+
+      const next =
+        currentFrame >= frames.length - 1
+          ? 0
+          : currentFrame + 1;
+
+      applyFrame(next);
+    }
+
+
+    function stopFrames() {
+
+      framePlaying = false;
+
+      if (frameTimer) {
+        clearTimeout(frameTimer);
+        frameTimer = null;
+      }
+
+      const button = $('playFrames');
+
+      if (button) {
+        button.textContent = '▶ Reproduzir';
+      }
+    }
+
+
+    /*
+     * Reprodução automática dos frames.
+     */
+    function playFrames() {
+
+      if (frames.length < 2) {
+        return;
+      }
+
+      if (framePlaying) {
+        stopFrames();
+        return;
+      }
+
+      framePlaying = true;
+
+      $('playFrames').textContent = '⏸ Parar';
+
+      /*
+       * Começa pelo frame atualmente selecionado.
+       */
+      playingFrame =
+        currentFrame >= 0
+          ? currentFrame
+          : 0;
+
+      runFrameAnimation();
+    }
+
+
+    /*
+     * Loop da animação.
+     */
+    function runFrameAnimation() {
+
+      if (!framePlaying || frames.length < 2) {
+        stopFrames();
+        return;
+      }
+
+      /*
+       * Aplica o frame diretamente na fita.
+       */
+      applyFrame(playingFrame);
+
+      /*
+       * Próximo frame.
+       */
+      playingFrame++;
+
+      if (playingFrame >= frames.length) {
+        playingFrame = 0;
+      }
+
+      const interval =
+        Math.max(
+          20,
+          +$('frameInterval').value || 200
+        );
+
+      frameTimer = setTimeout(
+        runFrameAnimation,
+        interval
+      );
+    }
+
+    /*
+     * Cria uma pequena prévia visual do frame.
+     */
+    function getFramePreview(frame) {
+
+      if (!frame || !frame.length) {
+        return '#000000';
+      }
+
+      let r = 0;
+      let g = 0;
+      let b = 0;
+
+      /*
+       * Média das cores do frame.
+       */
+      for (const led of frame) {
+        r += led.r;
+        g += led.g;
+        b += led.b;
+      }
+
+      r = Math.round(r / frame.length);
+      g = Math.round(g / frame.length);
+      b = Math.round(b / frame.length);
+
+      return `rgb(${r},${g},${b})`;
+    }
+
+
+    /*
+     * Atualiza a lista visual de frames.
+     */
+    function updateFrameUI() {
+
+      const counter = $('frameCounter');
+      const list = $('frameList');
+
+      if (!counter || !list) return;
+
+      counter.textContent =
+        currentFrame >= 0
+          ? `Frame ${currentFrame + 1} / ${frames.length}`
+          : `Frame 0 / ${frames.length}`;
+
+      list.innerHTML = '';
+
+      frames.forEach((frame, index) => {
+
+        const item =
+          document.createElement('div');
+
+        item.className =
+          'frameItem' +
+          (index === currentFrame
+            ? ' active'
+            : '');
+
+        const preview =
+          document.createElement('div');
+
+        preview.className =
+          'frameItemPreview';
+
+        preview.style.background =
+          getFramePreview(frame);
+
+        const label =
+          document.createElement('span');
+
+        label.textContent =
+          '#' + (index + 1);
+
+        item.appendChild(preview);
+        item.appendChild(label);
+
+        item.onclick = () => {
+          applyFrame(index);
+        };
+
+        list.appendChild(item);
+      });
+    }
+
     function updateAll() {
       syncPanel();
       updateElectrical();
@@ -3476,6 +3903,54 @@
     $('send').onclick = transmit;
     $('applyLed').onclick = applySelected;
     $('nextBit').onclick = nextBit;
+    $('addFrame').onclick = () => {
+
+      /*
+       * Para evitar alterar um frame enquanto
+       * ele está sendo reproduzido.
+       */
+      stopFrames();
+
+      addFrame();
+    };
+
+
+    $('updateFrame').onclick = () => {
+
+      stopFrames();
+
+      updateCurrentFrame();
+    };
+
+
+    $('deleteFrame').onclick = () => {
+
+      stopFrames();
+
+      deleteCurrentFrame();
+    };
+
+
+    $('prevFrame').onclick = () => {
+
+      stopFrames();
+
+      previousFrame();
+    };
+
+
+    $('nextFrame').onclick = () => {
+
+      stopFrames();
+
+      nextFrame();
+    };
+
+
+    $('playFrames').onclick = () => {
+
+      playFrames();
+    };
     $('resetBits').onclick = () => {
       resetBitDecomposition();
     };
@@ -3518,6 +3993,10 @@
       });
 
       updateAll()
+      if (currentFrame >= 0) {
+        frames[currentFrame] = captureCurrentFrame();
+        updateFrameUI();
+      }
     }
 
     $('resetView').onclick = () => {
