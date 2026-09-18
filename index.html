@@ -3581,27 +3581,14 @@
      * Aplica um frame à fita.
      */
     function applyFrame(index) {
-
-      if (
-        index < 0 ||
-        index >= frames.length
-      ) {
+      if (index < 0 || index >= frames.length) {
         return;
       }
 
       const frame = frames[index];
 
-      /*
-       * Se a quantidade de LEDs mudou,
-       * ajusta o frame para a quantidade atual.
-       */
       for (let i = 0; i < leds.length; i++) {
-
-        const color = frame[i] || {
-          r: 0,
-          g: 0,
-          b: 0
-        };
+        const color = frame[i] || { r: 0, g: 0, b: 0 };
 
         leds[i].r = color.r;
         leds[i].g = color.g;
@@ -3609,12 +3596,7 @@
 
         const ordered = bytesOf(leds[i]);
 
-        leds[i].mem = [
-          leds[i].r,
-          leds[i].g,
-          leds[i].b
-        ];
-
+        leds[i].mem = [leds[i].r, leds[i].g, leds[i].b];
         leds[i].received = ordered.slice();
         leds[i].shift = ordered.slice();
         leds[i].latch = ordered.slice();
@@ -3624,8 +3606,10 @@
 
       updateAll();
       updateFrameUI();
-    }
 
+      // Força o redesenho gráfico a cada quadro da animação
+      requestAnimationFrame(draw);
+    }
 
     /*
      * Adiciona o estado atual como novo frame.
