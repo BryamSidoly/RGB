@@ -1293,53 +1293,6 @@
 
       ctx.fillText('DOUT',35 * zoom,-7 * zoom);
       ctx.restore();
-
-      /*LEGENDA DA FITA*/
-      if (zoom > 0.55) {
-
-        ctx.save();
-        ctx.font = `${Math.max(8, 9 * zoom)}px ui-monospace`;
-        ctx.textAlign = 'left';
-
-        const legendX = 20;
-        const legendY = h - 24;
-
-        ctx.fillStyle = '#8f99aa';
-
-        ctx.fillText(
-          'FITA WS2812B',
-          legendX,
-          legendY
-        );
-
-        ctx.fillStyle = '#6f7885';
-
-        ctx.fillText(
-          '• substrato',
-          legendX + 105,
-          legendY
-        );
-
-        ctx.fillText(
-          '• +5V',
-          legendX + 180,
-          legendY
-        );
-
-        ctx.fillText(
-          '• DATA',
-          legendX + 225,
-          legendY
-        );
-
-        ctx.fillText(
-          '• GND',
-          legendX + 280,
-          legendY
-        );
-        ctx.restore();
-      }
-      ctx.restore();
     }
 
     function selectAt(mx, my) {
