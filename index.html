@@ -114,15 +114,12 @@
             <h2>Osciloscópio — DATA</h2>
             <span id="scopeLed">LED #1</span>
           </div>
-
           <canvas id="scope" class="scope"></canvas>
-
           <div class="scopeLegend">
             <span>5V ─ nível HIGH</span>
             <span>0V ─ nível LOW</span>
             <span id="scopeInfo">24 bits</span>
           </div>
-
           <div class="engStatus">
             Visualização didática do sinal serial que chega ao CI.
             Cada bit é representado como nível lógico HIGH/LOW.
@@ -135,22 +132,18 @@
             <h2>Shift Register</h2>
             <span id="engShiftLed">LED #1</span>
           </div>
-
           <div id="engShiftBits" class="engBits">
             00000000 00000000 00000000
           </div>
-
           <div class="engData" style="margin-top:8px">
             <div class="engMetric">
               <span>Bits recebidos</span>
               <b id="engBitCount">24</b>
             </div>
-
             <div class="engMetric">
               <span>Velocidade DATA</span>
               <b id="engBaud">800 kbit/s</b>
             </div>
-
             <div class="engMetric engWide">
               <span>Fluxo serial</span>
               <b id="engSerialFlow">DIN → Shift Register → Latch → PWM</b>
@@ -288,13 +281,11 @@
           </div>
 
         </div>
-
         <div class="engineeringCard engineeringElectricalPath">
           <div class="engineeringHeader">
             <h2>Distribuição elétrica da fita</h2>
             <span id="engInjectionStatus">Alimentação única</span>
           </div>
-
           <div class="electricalControls">
             <div>
               <label>Pontos de alimentação</label>
@@ -305,38 +296,31 @@
                 <option value="none">Sem alimentação</option>
               </select>
             </div>
-
             <div>
               <label>Resistência por trecho (Ω)</label>
               <input id="segmentResistance" type="number" step=".001" value=".004">
             </div>
           </div>
-
           <div class="powerSourceVisual">
             <div class="sourceBox">
               <strong id="sourceVoltageVisual">5V 10A</strong>
               <span>FONTE</span>
             </div>
-
             <div class="sourceLine">
               <span>+</span>
               <div class="sourceRail"></div>
             </div>
           </div>
-
           <div id="electricalStrip" class="electricalStrip"></div>
-
           <div class="electricalLegend">
             <span>
               <i class="legendDot normal"></i>
               Tensão normal
             </span>
-
             <span>
               <i class="legendDot warning"></i>
               Queda elevada
             </span>
-
             <span>
               <i class="legendDot critical"></i>
               Tensão baixa
@@ -492,9 +476,7 @@
               do Shift Register para a memória do pixel.
             </div>
           </div>
-
         </div>
-
       </div>
     </main>
 
